@@ -29,6 +29,16 @@ field without handing the answer over. Two rules keep a round answerable:
 The puzzle is seeded by the date **in Stanford's time zone**, so everyone gets the same
 ten whatever clock their phone is on. `?seed=N` plays a fixed game.
 
+## Practise one part of campus
+
+After a game, five buttons offer ten rounds from one area — answers *and* wrong names
+from the same part of campus, which is harder and is how you learn a neighbourhood. The
+areas are a k-means split of the playable footprints' centres (farthest-point start, so
+the same data always gives the same five), and each is named after the biggest notable
+building in it: *Around Bing Concert Hall* is checkable, an invented neighbourhood name
+would not be. Each button draws its area on the campus map. Practice games never touch
+the daily score.
+
 The day is remembered in the browser (localStorage, nothing leaves the phone): a reload
 resumes where you were, a finished day shows its result rather than a replay, and the end
 screen counts days played, the current and best streak, and how your days have scored.

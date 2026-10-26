@@ -275,6 +275,51 @@ ok("pickRounds: still works when no building is flagged",
   eq("stats: empty history", G.stats(H0, day).played, 0);
 }
 
+/* ---- areas: practise one part of campus ----------------------------------- */
+{
+  const A = G.areas(B);
+  eq("areas: five of them", A.list.length, 5);
+  eq("areas: the same data gives the same areas (no randomness in the split)",
+     JSON.stringify(G.areas(B)), JSON.stringify(A));
+  ok("areas: every named building is in exactly one area",
+     B.every((b) => Number.isInteger(A.of[b.n]) && A.of[b.n] >= 0 && A.of[b.n] < A.list.length));
+  eq("areas: named counts add up to every building",
+     A.list.reduce((t, a) => t + a.named, 0), B.length);
+  ok("areas: labels are distinct", new Set(A.list.map((a) => a.label)).size === A.list.length);
+  ok("areas: ordered west to east",
+     A.list.every((a, i) => i === 0 || A.list[i - 1].centre[0] <= a.centre[0]));
+  A.list.forEach((a, i) => {
+    const mine = G.inArea(B, A, i);
+    ok(`areas[${i}]: enough playable outlines for ten rounds`, a.playable >= 10, `${a.playable}`);
+    eq(`areas[${i}]: playable count matches its rows`, a.playable, mine.filter((b) => b.q === 1).length);
+    ok(`areas[${i}]: named after a building that is in it`, A.of[a.near] === i, a.near);
+    for (const seed of [1, 99, 123456789]) {
+      const r = G.pickRounds(mine, seed, 10);
+      ok(`areas[${i}] seed ${seed}: ten different answers`, new Set(r.map((x) => x.answer.n)).size === 10);
+      ok(`areas[${i}] seed ${seed}: every answer and wrong name is from this area`,
+         r.every((x) => x.choices.every((n) => A.of[n] === i)),
+         r.flatMap((x) => x.choices).filter((n) => A.of[n] !== i).join("; "));
+      ok(`areas[${i}] seed ${seed}: four names, the answer among them`,
+         r.every((x) => x.choices.length === 4 && new Set(x.choices).size === 4 &&
+                        x.choices[x.correct] === x.answer.n));
+    }
+  });
+  /* A synthetic campus, so the split itself is checked and not only today's data:
+     three tight clumps far apart must come back as exactly those three. */
+  const sq = (n, x, y, q) => ({ n, a: 900, f: 0.5, q, w: 0, p: [x, y, x + 30, y, x + 30, y + 30, x, y + 30] });
+  const toy = [];
+  [[0, 0], [5000, 0], [0, 5000]].forEach(([x, y], c) => {
+    for (let j = 0; j < 4; j++) toy.push(sq(`c${c}-${j}`, x + j * 40, y, 1));
+  });
+  const T = G.areas(toy, 3);
+  ok("areas: three far-apart clumps split into exactly those three",
+     [0, 1, 2].every((c) => new Set(toy.filter((b) => b.n.startsWith(`c${c}-`)).map((b) => T.of[b.n])).size === 1) &&
+     new Set(Object.values(T.of)).size === 3);
+  eq("areas: the west-most clump is area 0", T.of["c0-0"] === 0 || T.of["c2-0"] === 0, true);
+  eq("areas: a comma'd estate name is shown as the estate",
+     G.areas([sq("Escondido Village, EVGR Bldg A", 0, 0, 1)], 1).list[0].label, "Around Escondido Village");
+}
+
 if (fails.length) {
   console.error(fails.map((f) => "FAIL: " + f).join("\n"));
   console.error(`${pass} passed, ${fails.length} FAILED`);

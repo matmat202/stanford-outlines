@@ -11,6 +11,7 @@
   const SVGNS = "http://www.w3.org/2000/svg";
 
   let DATA = null, rounds = [], at = 0, picked = [], day = "", seedLabel = "", daily = false;
+  let AREAS = null;
 
   /* The daily record (game-logic.js has the why). Storage can be absent or refuse a
    * write (private mode, a full quota); the game must still play, just unremembered. */
@@ -148,7 +149,7 @@
       '</ul><div class="actions"><button type="button" class="go" id="copy">Copy result</button>' +
       '<button type="button" class="ghost" id="again">Another ten</button></div>' +
       (isDaily ? '<p class="note">A new ten at midnight, campus time. Another ten is just for fun — it does not change today’s score.</p>' : "") +
-      "</div>";
+      areasHtml() + "</div>";
     $("copy").addEventListener("click", function () {
       const text = G.shareEntry(e, isDaily ? day : label);
       const done = () => { this.textContent = "Copied"; };
@@ -157,7 +158,34 @@
       } else { this.textContent = text; }
     });
     $("again").addEventListener("click", () => start((Math.random() * 4294967296) >>> 0, "A random ten", false));
+    $("end").querySelectorAll("button[data-area]").forEach((btn) => btn.addEventListener("click", () => {
+      const i = Number(btn.dataset.area);
+      start((Math.random() * 4294967296) >>> 0, AREAS.list[i].label, false, null, i);
+    }));
     $("end").scrollIntoView({ block: "nearest" });
+  }
+
+  /* Practise one part of campus: ten rounds whose answers and wrong names all come from
+   * one area (game-logic.js areas()), each button drawing that area on the campus map. */
+  function areasHtml() {
+    if (!AREAS) return "";
+    const ring = (x) => {
+      let d = "";
+      for (let i = 0; i < x.p.length; i += 2) {
+        d += (i ? "L" : "M") + x.p[i].toFixed(0) + " " + (DATA.campus.h - x.p[i + 1]).toFixed(0);
+      }
+      return d + "Z";
+    };
+    return '<h2 class="areas-h">Practise one part of campus</h2>' +
+      '<p class="note">Ten from one area, wrong names from the same area. Just for fun.</p>' +
+      '<div class="areas">' + AREAS.list.map((a, i) => {
+        let mine = "", rest = "";
+        DATA.buildings.forEach((b) => { if (AREAS.of[b.n] === i) mine += ring(b); else rest += ring(b); });
+        return '<button type="button" class="area" data-area="' + i + '">' +
+          '<svg viewBox="0 0 ' + DATA.campus.w + " " + DATA.campus.h + '" aria-hidden="true">' +
+          '<path class="mini-all" d="' + rest + '"/><path class="mini-one" d="' + mine + '"/></svg>' +
+          "<span>" + esc(a.label) + "<small>" + a.named + " buildings</small></span></button>";
+      }).join("") + "</div>";
   }
 
   function statsHtml(today) {
@@ -180,8 +208,9 @@
 
   /* ---- start ------------------------------------------------------------- */
 
-  function start(seed, label, isDaily, from) {
-    rounds = G.pickRounds(DATA.buildings, seed, ROUNDS);
+  function start(seed, label, isDaily, from, area) {
+    const pool = area == null ? DATA.buildings : G.inArea(DATA.buildings, AREAS, area);
+    rounds = G.pickRounds(pool, seed, ROUNDS);
     picked = from || [];
     at = from ? Math.max(0, picked.indexOf(null)) : 0;
     daily = !!isDaily;
@@ -212,6 +241,7 @@
       $("sub").textContent = "Could not load the campus outlines. Try reloading.";
       return;
     }
+    AREAS = G.areas(DATA.buildings);
     $("stats").textContent = DATA.counts.named + " named buildings, " +
       DATA.counts.playable + " distinctive enough to ask";
     $("next").addEventListener("click", next);

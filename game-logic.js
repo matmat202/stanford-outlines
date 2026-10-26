@@ -294,12 +294,94 @@
     return { played: done.length, streak: streak, best: best, dist: dist };
   }
 
+
+  /* ---- areas: practise one part of campus ------------------------------------ */
+
+  function centre(b) {
+    let x = 0, y = 0;
+    const n = b.p.length / 2;
+    for (let i = 0; i < b.p.length; i += 2) { x += b.p[i]; y += b.p[i + 1]; }
+    return [x / n, y / n];
+  }
+
+  /** Split campus into k areas by where its playable buildings cluster (k-means on
+   *  footprint centres, farthest-point start, so the same data always gives the same
+   *  areas and no Math.random is involved). Every named building then joins its nearest
+   *  area, so wrong names come from the same part of campus as the answer. Each area is
+   *  named after a building in it ("Around Maples Pavilion" is checkable, an invented
+   *  neighbourhood name would not be), and the page also draws it on a map. Sorted by x. */
+  function areas(all, k) {
+    k = k || 5;
+    const play = all.filter(function (b) { return b.q === 1; })
+      .slice().sort(function (a, b) { return a.n < b.n ? -1 : 1; });
+    const pts = play.map(centre);
+    const d2 = function (a, b) { return (a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]); };
+    let first = 0;
+    pts.forEach(function (p, i) { if (p[0] < pts[first][0]) first = i; });
+    const cen = [pts[first]];
+    while (cen.length < k) {
+      let bi = 0, bd = -1;
+      pts.forEach(function (p, i) {
+        const m = Math.min.apply(null, cen.map(function (c) { return d2(p, c); }));
+        if (m > bd) { bd = m; bi = i; }
+      });
+      cen.push(pts[bi]);
+    }
+    const nearest = function (p) {
+      let bi = 0;
+      for (let j = 1; j < cen.length; j++) if (d2(p, cen[j]) < d2(p, cen[bi])) bi = j;
+      return bi;
+    };
+    let g = [];
+    for (let it = 0; it < 100; it++) {
+      const ng = pts.map(nearest);
+      if (ng.join() === g.join()) break;
+      g = ng;
+      for (let j = 0; j < k; j++) {
+        let sx = 0, sy = 0, c = 0;
+        pts.forEach(function (p, i) { if (g[i] === j) { sx += p[0]; sy += p[1]; c++; } });
+        if (c) cen[j] = [sx / c, sy / c];
+      }
+    }
+    const order = cen.map(function (c, j) { return j; })
+      .sort(function (a, b) { return cen[a][0] - cen[b][0]; });
+    const rank = {};
+    order.forEach(function (j, r) { rank[j] = r; });
+    const of = {};
+    all.forEach(function (b) { of[b.n] = rank[nearest(centre(b))]; });
+    const used = {};
+    const list = order.map(function (j, r) {
+      const mine = all.filter(function (b) { return of[b.n] === r; });
+      /* The biggest notable building is the one a newcomer has most likely walked past;
+         an area with none (Escondido Village has no w=1 entry) falls back to its biggest
+         playable one, and "Escondido Village, EVGR Bldg A" is shown as its estate. */
+      const biggest = function (pool) {
+        return pool.filter(function (b) { return !used[b.n]; })
+          .sort(function (a, b) { return b.a - a.a || (a.n < b.n ? -1 : 1); })[0];
+      };
+      const mark = biggest(mine.filter(function (b) { return b.w === 1; })) ||
+        biggest(mine.filter(function (b) { return b.q === 1; }));
+      used[mark.n] = true;
+      return {
+        label: "Around " + mark.n.split(",")[0], near: mark.n, centre: cen[j],
+        named: mine.length, playable: mine.filter(function (b) { return b.q === 1; }).length,
+      };
+    });
+    return { list: list, of: of };
+  }
+
+  /** The buildings of area i, for pickRounds: answers and wrong names both from there. */
+  function inArea(all, A, i) {
+    return all.filter(function (b) { return A.of[b.n] === i; });
+  }
+
   const api = {
     rng: rng, seedFor: seedFor, campusDay: campusDay, bbox: bbox, pathFor: pathFor,
     scaleBar: scaleBar, tooSimilar: tooSimilar, distractors: distractors, family: family,
     shuffled: shuffled, pickRounds: pickRounds, score: score, shareText: shareText, shareEntry: shareEntry,
     KEY: KEY, entryFor: entryFor, complete: complete, rightCount: rightCount,
     parseHistory: parseHistory, record: record, resume: resume, prevDay: prevDay, stats: stats,
+    centre: centre, areas: areas, inArea: inArea,
     MIN_VERTS: 8, MAX_FILL: 0.92, MIN_AREA: 600,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;

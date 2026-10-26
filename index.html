@@ -68,6 +68,14 @@ h1{font-size:24px;margin:4px 0 2px}h1 .red{color:var(--accent)}
   background:var(--card);color:var(--ink);cursor:pointer}
 .ghost:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.areas-h{font-size:17px;margin:22px 0 2px}
+.areas{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:8px}
+.area{display:flex;flex-direction:column;gap:6px;align-items:stretch;text-align:left;font:inherit;padding:8px;
+  border:1px solid var(--line);border-radius:10px;background:transparent;color:inherit;cursor:pointer}
+.area:hover{border-color:var(--accent)}
+.area:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.area svg{width:100%;height:auto;display:block}
+.area small{display:block;color:var(--ink-2);font-size:12px}
 .final{text-align:center;padding:18px 14px}
 .final .big{font-size:40px;font-weight:700;line-height:1;margin:0 0 4px;font-variant-numeric:tabular-nums}
 .final .sq{font-size:21px;letter-spacing:3px;margin:10px 0 0}
