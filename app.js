@@ -10,7 +10,7 @@
   const SIDE = 460;            /* the outline canvas, in SVG units */
   const SVGNS = "http://www.w3.org/2000/svg";
 
-  let DATA = null, rounds = [], at = 0, picked = [], day = "", seedLabel = "", daily = false;
+  let DATA = null, rounds = [], at = 0, picked = [], day = "", seedLabel = "", daily = false, missGame = false;
   let AREAS = null;
 
   /* The daily record (game-logic.js has the why). Storage can be absent or refuse a
@@ -24,6 +24,16 @@
       localStorage.setItem(G.KEY, JSON.stringify(G.record(loadHist(), day, G.entryFor(picked, rounds))));
     } catch (e) { /* unremembered, still playable */ }
   }
+  function loadFixed() {
+    try { return G.parseFixed(localStorage.getItem(G.FIXED_KEY)); } catch (e) { return {}; }
+  }
+  /* A right answer in a misses round closes that miss (game-logic.js misses()). */
+  function saveFix(name) {
+    try {
+      localStorage.setItem(G.FIXED_KEY, JSON.stringify(G.fix(loadFixed(), [name], G.campusDay())));
+    } catch (e) { /* unremembered, still playable */ }
+  }
+  const openMisses = () => G.misses(loadHist(), loadFixed(), DATA.buildings);
 
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -93,6 +103,7 @@
     picked[at] = i;
     saveDay();
     const right = i === r.correct;
+    if (missGame && right) saveFix(r.answer.n);
     $("choices").querySelectorAll("button").forEach((btn) => {
       const k = Number(btn.dataset.i);
       btn.disabled = true;
@@ -149,7 +160,7 @@
       '</ul><div class="actions"><button type="button" class="go" id="copy">Copy result</button>' +
       '<button type="button" class="ghost" id="again">Another ten</button></div>' +
       (isDaily ? '<p class="note">A new ten at midnight, campus time. Another ten is just for fun — it does not change today’s score.</p>' : "") +
-      areasHtml() + "</div>";
+      missesHtml() + areasHtml() + "</div>";
     $("copy").addEventListener("click", function () {
       const text = G.shareEntry(e, isDaily ? day : label);
       const done = () => { this.textContent = "Copied"; };
@@ -158,11 +169,44 @@
       } else { this.textContent = text; }
     });
     $("again").addEventListener("click", () => start((Math.random() * 4294967296) >>> 0, "A random ten", false));
+    const mb = $("misses");
+    if (mb) mb.addEventListener("click", startMisses);
     $("end").querySelectorAll("button[data-area]").forEach((btn) => btn.addEventListener("click", () => {
       const i = Number(btn.dataset.area);
       start((Math.random() * 4294967296) >>> 0, AREAS.list[i].label, false, null, i);
     }));
     $("end").scrollIntoView({ block: "nearest" });
+  }
+
+  /* Practise your misses: every building got wrong in a daily and not yet got right
+   * since, ten at a time, newest first. A right answer here clears it; the daily score
+   * is never touched. */
+  function missesHtml() {
+    const open = openMisses();
+    if (!open.length) {
+      return missGame ? '<p class="note misses-none">No misses left — every building you got wrong, you have since got right.</p>' : "";
+    }
+    const n = Math.min(open.length, ROUNDS);
+    return '<h2 class="areas-h">Your misses</h2>' +
+      '<p class="note">' + open.length + (open.length === 1 ? " building" : " buildings") +
+      " you got wrong in a daily and have not got right since. A right answer here clears it.</p>" +
+      '<div class="actions"><button type="button" class="go" id="misses">Practise ' +
+      (n === open.length ? (n === 1 ? "it" : n === 2 ? "both" : "all " + n) : "the newest " + n) + "</button></div>";
+  }
+
+  function startMisses() {
+    const open = openMisses();
+    if (!open.length) return;
+    rounds = G.missRounds(open, DATA.buildings, (Math.random() * 4294967296) >>> 0, ROUNDS);
+    picked = [];
+    at = 0;
+    daily = false;
+    missGame = true;
+    seedLabel = "Your misses";
+    $("end").hidden = true;
+    $("game").hidden = false;
+    $("sub").textContent = seedLabel + " · tap a name, or press 1–4.";
+    showRound();
   }
 
   /* Practise one part of campus: ten rounds whose answers and wrong names all come from
@@ -210,6 +254,7 @@
 
   function start(seed, label, isDaily, from, area) {
     const pool = area == null ? DATA.buildings : G.inArea(DATA.buildings, AREAS, area);
+    missGame = false;
     rounds = G.pickRounds(pool, seed, ROUNDS);
     picked = from || [];
     at = from ? Math.max(0, picked.indexOf(null)) : 0;

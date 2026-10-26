@@ -327,6 +327,51 @@ ok("pickRounds: still works when no building is flagged",
      G.areas([sq("Escondido Village, EVGR Bldg A", 0, 0, 1)], 1).list[0].label, "Around Escondido Village");
 }
 
+/* ---- misses ---------------------------------------------------------------- */
+{
+  const P = B.filter((b) => b.q === 1);
+  const [a, b, c, d] = P.map((x) => x.n);
+  const wrong = P[10].n;
+  const day = (n, c) => ({ n, c });
+  /* Three misses on three days, listed out of order, so a sort that only swaps a pair
+     cannot pass by luck. */
+  const hist = { days: {
+    "2026-10-21": day([b, a], [wrong, a]),         // b missed 21st, a right
+    "2026-10-23": day([c], [wrong]),                // c missed 23rd
+    "2026-10-20": day([d, a], [wrong, wrong]),     // d and a missed 20th (a fixed 21st)
+  } };
+  eq("misses: newest miss first, a later right answer closes one",
+     G.misses(hist, {}, B).map((x) => x.n).join("|"), [c, b, d].join("|"));
+  eq("misses: a fix on the miss day closes it",
+     G.misses(hist, { [c]: "2026-10-23" }, B).map((x) => x.n).join("|"), [b, d].join("|"));
+  eq("misses: a fix before a later miss does not",
+     G.misses(hist, { [c]: "2026-10-22" }, B).map((x) => x.n).join("|"), [c, b, d].join("|"));
+  const later = { days: Object.assign({}, hist.days, { "2026-10-25": day([a], [wrong]) }) };
+  eq("misses: missing a fixed building again reopens it",
+     G.misses(later, {}, B)[0].n, a);
+  eq("misses: unanswered rounds of an unfinished day are not misses",
+     G.misses({ days: { "2026-10-24": day([a, b], [wrong, null]) } }, {}, B).map((x) => x.n).join("|"), a);
+  eq("misses: a building gone from the data is skipped, not thrown",
+     G.misses({ days: { "2026-10-24": day(["No Such Hall", a], [wrong, wrong]) } }, {}, B).map((x) => x.n).join("|"), a);
+  eq("misses: no history, no misses", G.misses({ days: {} }, {}, B).length, 0);
+  const R = G.missRounds(G.misses(hist, {}, B), B, 42);
+  ok("missRounds: one round per open miss, each answer offered exactly once",
+     R.length === 3 && new Set(R.map((r) => r.answer.n)).size === 3);
+  ok("missRounds: four distinct names, the answer among them",
+     R.every((r) => r.choices.length === 4 && new Set(r.choices).size === 4 && r.choices[r.correct] === r.answer.n));
+  const many = P.slice(0, 25);
+  eq("missRounds: capped at ten", G.missRounds(many, B, 1).length, 10);
+  ok("missRounds: the cap keeps the newest ten",
+     G.missRounds(many, B, 1).every((r) => many.slice(0, 10).includes(r.answer)));
+  eq("fix: keeps the later of two days",
+     JSON.stringify(G.fix({ [a]: "2026-10-25" }, [a, b], "2026-10-24")),
+     JSON.stringify({ [a]: "2026-10-25", [b]: "2026-10-24" }));
+  eq("parseFixed: junk is empty", JSON.stringify(G.parseFixed("{nope")), "{}");
+  eq("parseFixed: drops a bad date, keeps a good one",
+     JSON.stringify(G.parseFixed(JSON.stringify({ x: "yesterday", y: "2026-10-24", z: 3 }))),
+     JSON.stringify({ y: "2026-10-24" }));
+}
+
 if (fails.length) {
   console.error(fails.map((f) => "FAIL: " + f).join("\n"));
   console.error(`${pass} passed, ${fails.length} FAILED`);

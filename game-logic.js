@@ -159,15 +159,18 @@
     const want = Math.min(landmarks, marks.length, n);
     const chosen = shuffled(marks.slice(0, want).concat(rest.slice(0, n - want)), rnd);
     const pool = chosen.length === n ? chosen : shuffled(playable, rnd).slice(0, n);
-    const rounds = [];
-    for (let i = 0; i < n; i++) {
-      const answer = pool[i];
+    return roundsFor(pool, all, rnd, choices);
+  }
+
+  /** One round per answer, in the order given, wrong names drawn from `all` by the same
+   *  rules as the daily (similar size, no twin footprint, no sibling name). */
+  function roundsFor(answers, all, rnd, choices) {
+    return answers.map(function (answer) {
       const names = shuffled(
-        [answer].concat(distractors(answer, all, rnd, choices - 1)), rnd
+        [answer].concat(distractors(answer, all, rnd, (choices || 4) - 1)), rnd
       ).map(function (b) { return b.n; });
-      rounds.push({ answer: answer, choices: names, correct: names.indexOf(answer.n) });
-    }
-    return rounds;
+      return { answer: answer, choices: names, correct: names.indexOf(answer.n) };
+    });
   }
 
   function score(picked, rounds) {
@@ -295,6 +298,62 @@
   }
 
 
+  /* ---- misses: practise what you got wrong ------------------------------------
+   * A building missed in the daily comes back a median 8 days later (p90 35, measured
+   * over 365 seeded days), so the daily alone never tells you whether you learned it.
+   * A miss stays open until that building is answered right — on a later daily, or in
+   * a misses round. Fixes are a second record, by name and campus day, so a miss on a
+   * day after the fix reopens it. */
+
+  const FIXED_KEY = "outlines.fixed.v1";
+
+  /** {name: "YYYY-MM-DD"} from whatever localStorage held; junk reads as empty. */
+  function parseFixed(raw) {
+    let h = null;
+    try { h = JSON.parse(raw); } catch (e) { h = null; }
+    const out = {};
+    if (!h || typeof h !== "object" || Array.isArray(h)) return out;
+    Object.keys(h).forEach(function (n) {
+      if (typeof h[n] === "string" && /^\d{4}-\d{2}-\d{2}$/.test(h[n])) out[n] = h[n];
+    });
+    return out;
+  }
+
+  /** Mark the names answered right in a misses round as fixed on `day`. New object. */
+  function fix(fixed, names, day) {
+    const out = Object.assign({}, fixed);
+    names.forEach(function (n) { if (!out[n] || out[n] < day) out[n] = day; });
+    return out;
+  }
+
+  /** The open misses, newest miss first, as building records still in `all`'s playable
+   *  pool (a rebuild can drop a building; its miss is then unaskable, not an error).
+   *  A day's unanswered rounds are not misses — the game was just not finished. */
+  function misses(hist, fixed, all) {
+    const lastMiss = {}, lastRight = {};
+    Object.keys(hist.days).sort().forEach(function (d) {
+      const e = hist.days[d];
+      e.n.forEach(function (n, i) {
+        if (e.c[i] == null) return;
+        if (e.c[i] === n) lastRight[n] = d; else lastMiss[n] = d;
+      });
+    });
+    const by = {};
+    all.forEach(function (b) { if (b.q === 1) by[b.n] = b; });
+    return Object.keys(lastMiss).filter(function (n) {
+      const ok = [lastRight[n], fixed[n]].filter(Boolean).sort().pop();
+      return by[n] && !(ok && ok >= lastMiss[n]);
+    }).sort(function (a, b) {
+      return lastMiss[a] < lastMiss[b] ? 1 : lastMiss[a] > lastMiss[b] ? -1 : (a < b ? -1 : 1);
+    }).map(function (n) { return by[n]; });
+  }
+
+  /** Up to n rounds from the open misses, the newest first, shuffled within the game. */
+  function missRounds(open, all, seed, n) {
+    const rnd = rng(seed);
+    return roundsFor(shuffled(open.slice(0, n || 10), rnd), all, rnd);
+  }
+
   /* ---- areas: practise one part of campus ------------------------------------ */
 
   function centre(b) {
@@ -381,7 +440,8 @@
     shuffled: shuffled, pickRounds: pickRounds, score: score, shareText: shareText, shareEntry: shareEntry,
     KEY: KEY, entryFor: entryFor, complete: complete, rightCount: rightCount,
     parseHistory: parseHistory, record: record, resume: resume, prevDay: prevDay, stats: stats,
-    centre: centre, areas: areas, inArea: inArea,
+    centre: centre, areas: areas, inArea: inArea, roundsFor: roundsFor,
+    FIXED_KEY: FIXED_KEY, parseFixed: parseFixed, fix: fix, misses: misses, missRounds: missRounds,
     MIN_VERTS: 8, MAX_FILL: 0.92, MIN_AREA: 600,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;

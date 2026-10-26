@@ -44,11 +44,22 @@ resumes where you were, a finished day shows its result rather than a replay, an
 screen counts days played, the current and best streak, and how your days have scored.
 Answers are stored by building name, so a later data rebuild cannot rescore a past day.
 
+## Practise your misses
+
+A building you miss in the daily comes back a median **8 days** later (p90 35 — measured
+over 365 seeded days), so the daily alone never tells you whether you learned it. Every
+end screen therefore lists how many buildings you have got wrong in a daily and not got
+right since, and offers them as a game of their own, ten at a time, newest miss first.
+A right answer there — or on a later daily — clears it; missing it again on a later day
+reopens it. Like the area games, this never touches the daily score. The fixes are kept
+in the browser by building name and campus day, next to the daily record.
+
 ## Running it
 
 ```sh
 python3 -m http.server 8000 --directory site    # then open localhost:8000
 node site/game-logic.test.mjs                   # the logic suite
+test/run-misses.sh                              # misses, end to end in Electron
 ./refetch.sh                                    # refresh the OSM extract, then rebuild
 ```
 
