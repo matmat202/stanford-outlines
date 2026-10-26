@@ -372,6 +372,48 @@ ok("pickRounds: still works when no building is flagged",
      JSON.stringify({ y: "2026-10-24" }));
 }
 
+/* ---- pin: find it on the map ---------------------------------------------- */
+{
+  const sq = { n: "Square", p: [0, 0, 100, 0, 100, 100, 0, 100] };
+  const ell = { n: "Ell", p: [0, 0, 100, 0, 100, 40, 40, 40, 40, 100, 0, 100] };
+  eq("pin: a tap inside the building is 0 m off", G.pinDistance([50, 50], sq), 0);
+  eq("pin: a tap in an L's notch is outside, measured to the nearest wall",
+     Math.round(G.pinDistance([70, 70], ell)), 30);
+  eq("pin: distance is to a wall, not to a corner", G.pinDistance([50, 130], sq), 30);
+  eq("pin: distance past a corner is to the corner", G.pinDistance([130, 140], sq), 50);
+  ok("pin: inside() agrees with the L's arms and its notch",
+     G.inside([20, 80], ell.p) && G.inside([80, 20], ell.p) && !G.inside([80, 80], ell.p));
+  eq("pinPoints: full marks at the wall", G.pinPoints(0), 100);
+  eq("pinPoints: full marks up to 25 m", G.pinPoints(25), 100);
+  eq("pinPoints: zero at 500 m", G.pinPoints(500), 0);
+  eq("pinPoints: zero beyond, never negative", G.pinPoints(2000), 0);
+  ok("pinPoints: falls monotonically", [26, 100, 200, 300, 499].map(G.pinPoints)
+     .every((v, i, a) => i === 0 || v < a[i - 1]), [26, 100, 200, 300, 499].map(G.pinPoints).join());
+  eq("pinPoints: a missing tap scores 0, not NaN", G.pinPoints(undefined), 0);
+  // Every real building: a tap at its own centre-of-ring is close (centre can fall in a
+  // courtyard, so not always 0, but never a building away).
+  const far = B.filter((b) => G.pinDistance(G.centre(b), b) > 60).map((b) => b.n);
+  ok("pin: each building's centre is within 60 m of its own walls", far.length === 0, far.join(", "));
+  const pool = G.pinPool(B);
+  ok("pinPool: big enough for many distinct games, small enough to be findable",
+     pool.length >= 100 && pool.every((b) => b.w === 1 || b.a >= 1000), `${pool.length}`);
+  ok("pinPool: every notable (w=1) building is in it", B.filter((b) => b.w === 1).every((b) => pool.includes(b)));
+  const R = G.pinRounds(B, 7, 10);
+  eq("pinRounds: ten rounds", R.length, 10);
+  ok("pinRounds: ten distinct name families", new Set(R.map((b) => G.family(b.n))).size === 10);
+  eq("pinRounds: same seed, same game", G.pinRounds(B, 7, 10).map((b) => b.n).join("|"), R.map((b) => b.n).join("|"));
+  ok("pinRounds: another seed, another game", G.pinRounds(B, 8, 10).map((b) => b.n).join("|") !== R.map((b) => b.n).join("|"));
+  let famDup = 0;
+  for (let s = 0; s < 300; s++) {
+    const g = G.pinRounds(B, s, 10);
+    if (new Set(g.map((b) => G.family(b.n))).size !== g.length) famDup++;
+  }
+  eq("pinRounds: no game in 300 seeds asks two of one family", famDup, 0);
+  const sh = G.pinShare([0, 100, 300, 900], "Game #1");
+  ok("pinShare: totals the points and draws one square per round",
+     /— 226\/400\n/.test(sh) && sh.split("\n")[1] === "\u{1F7E9}\u{1F7E8}\u{1F7E7}\u{2B1C}", JSON.stringify(sh));
+}
+
 if (fails.length) {
   console.error(fails.map((f) => "FAIL: " + f).join("\n"));
   console.error(`${pass} passed, ${fails.length} FAILED`);

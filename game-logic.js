@@ -434,6 +434,80 @@
     return all.filter(function (b) { return A.of[b.n] === i; });
   }
 
+  /* ---- pin: find a named building on the map --------------------------------
+   * The inverse of the outline round: the name is the question, a tap on the campus map
+   * the answer, scored by how far the tap is from the building. Measured over the real
+   * layout (state/scratch/outlines-pin/measure.py), a random tap is within 150 m only
+   * 1.2% of the time, so unlike four choices (25% by chance) a good score means you knew. */
+
+  const PIN_MIN_AREA = 1000;   /* m²: about 154 buildings, each big enough to aim at */
+  const PIN_FULL = 25, PIN_ZERO = 500;
+
+  /** Buildings worth asking for by name: notable (w=1) or big enough to find. */
+  function pinPool(all) {
+    return all.filter(function (b) { return b.w === 1 || b.a >= PIN_MIN_AREA; });
+  }
+
+  /** n distinct buildings for a pin game; a game never asks two of one name family
+   *  ("Studio 1" then "Studio 4"), since those are the same tap. */
+  function pinRounds(all, seed, n) {
+    const rnd = rng(seed);
+    const out = [], fams = {};
+    shuffled(pinPool(all), rnd).forEach(function (b) {
+      const f = family(b.n);
+      if (out.length < (n || 10) && !fams[f]) { fams[f] = 1; out.push(b); }
+    });
+    return out;
+  }
+
+  /** Is [x, y] inside the ring p (flat x,y list)? Even-odd ray cast. */
+  function inside(pt, p) {
+    let c = false;
+    for (let i = 0, j = p.length - 2; i < p.length; j = i, i += 2) {
+      const xi = p[i], yi = p[i + 1], xj = p[j], yj = p[j + 1];
+      if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi) c = !c;
+    }
+    return c;
+  }
+
+  /** The point of the building nearest a tap, and how far: [x, y, metres]. A tap inside
+   *  is its own nearest point, 0 m off; outside, the nearest point is on a wall. */
+  function pinNearest(pt, b) {
+    const p = b.p;
+    if (inside(pt, p)) return [pt[0], pt[1], 0];
+    let best = [pt[0], pt[1], Infinity];
+    for (let i = 0, j = p.length - 2; i < p.length; j = i, i += 2) {
+      const ax = p[j], ay = p[j + 1], dx = p[i] - ax, dy = p[i + 1] - ay;
+      const L = dx * dx + dy * dy;
+      const t = L ? Math.max(0, Math.min(1, ((pt[0] - ax) * dx + (pt[1] - ay) * dy) / L)) : 0;
+      const x = ax + t * dx, y = ay + t * dy;
+      const d = Math.sqrt((x - pt[0]) * (x - pt[0]) + (y - pt[1]) * (y - pt[1]));
+      if (d < best[2]) best = [x, y, d];
+    }
+    return best;
+  }
+
+  /** Metres from a tap to the building: 0 inside it, else to its nearest wall. */
+  function pinDistance(pt, b) { return pinNearest(pt, b)[2]; }
+
+  /** 100 within 25 m of the walls, falling straight to 0 at 500 m. */
+  function pinPoints(metres) {
+    if (!(metres >= 0)) return 0;
+    if (metres <= PIN_FULL) return 100;
+    return Math.max(0, Math.round(100 * (PIN_ZERO - metres) / (PIN_ZERO - PIN_FULL)));
+  }
+
+  /** One square per round for a shared result: on it, close, near, off. */
+  function pinSquare(metres) {
+    return metres <= PIN_FULL ? "\u{1F7E9}" : metres <= 150 ? "\u{1F7E8}" : metres <= PIN_ZERO ? "\u{1F7E7}" : "\u{2B1C}";
+  }
+
+  function pinShare(dists, label) {
+    const pts = dists.reduce(function (s, m) { return s + pinPoints(m); }, 0);
+    return "Stanford Outlines · on the map · " + label + " — " + pts + "/" + (dists.length * 100) + "\n" +
+      dists.map(pinSquare).join("") + "\nhttps://matmat202.github.io/stanford-outlines/";
+  }
+
   const api = {
     rng: rng, seedFor: seedFor, campusDay: campusDay, bbox: bbox, pathFor: pathFor,
     scaleBar: scaleBar, tooSimilar: tooSimilar, distractors: distractors, family: family,
@@ -442,6 +516,8 @@
     parseHistory: parseHistory, record: record, resume: resume, prevDay: prevDay, stats: stats,
     centre: centre, areas: areas, inArea: inArea, roundsFor: roundsFor,
     FIXED_KEY: FIXED_KEY, parseFixed: parseFixed, fix: fix, misses: misses, missRounds: missRounds,
+    pinPool: pinPool, pinRounds: pinRounds, inside: inside, pinNearest: pinNearest, pinDistance: pinDistance,
+    pinPoints: pinPoints, pinSquare: pinSquare, pinShare: pinShare, PIN_FULL: PIN_FULL, PIN_ZERO: PIN_ZERO,
     MIN_VERTS: 8, MAX_FILL: 0.92, MIN_AREA: 600,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;

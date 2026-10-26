@@ -68,6 +68,8 @@ h1{font-size:24px;margin:4px 0 2px}h1 .red{color:var(--accent)}
   background:var(--card);color:var(--ink);cursor:pointer}
 .ghost:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.actions[hidden]{display:none}
+
 .areas-h{font-size:17px;margin:22px 0 2px}
 .areas{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:8px}
 .area{display:flex;flex-direction:column;gap:6px;align-items:stretch;text-align:left;font:inherit;padding:8px;
@@ -92,6 +94,14 @@ h1{font-size:24px;margin:4px 0 2px}h1 .red{color:var(--accent)}
 .recap li{display:flex;gap:9px;padding:5px 0;border-top:1px solid var(--line);font-size:13px}
 .recap .mark{flex:none;width:16px}
 .recap .ok{color:var(--right)}.recap .no{color:var(--wrong)}
+.ask{font-size:20px;font-weight:700;margin:2px 0 10px}
+.map svg{display:block;width:100%;height:auto;touch-action:manipulation;cursor:crosshair}
+.map .pinned{cursor:default}
+.pin-dot{fill:var(--ink);stroke:var(--card);stroke-width:8}
+.pin-line{stroke:var(--ink);stroke-width:7;stroke-dasharray:22 14}
+.map .mini-one{stroke-width:30}
+.pin-hint{color:var(--ink-2);font-size:12px;margin:6px 0 0}
+.recap .m{margin-left:auto;color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap}
 footer{color:var(--ink-2);font-size:12px;margin:22px 0 8px;line-height:1.55}
 footer a{color:var(--accent)}
 .sr-only{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
@@ -116,6 +126,26 @@ footer a{color:var(--accent)}
       <div class="actions"><button type="button" class="go" id="next">Next</button></div>
     </div>
     <div class="sr-only" id="said" role="status" aria-live="polite"></div>
+  </div>
+
+  <div id="pin" hidden>
+    <div class="bar">
+      <span class="round" id="pinLabel">Round 1 of 10</span>
+      <span class="tally" id="pinTally">0 points</span>
+    </div>
+    <p class="ask" id="pinAsk"></p>
+    <div class="stage map" id="pinMap"></div>
+    <p class="pin-hint" id="pinHint">Tap the map where you think it is. North is up; the map is every mapped building on campus.</p>
+    <div class="actions" id="pinActs">
+      <button type="button" class="go" id="pinLock" disabled>Lock it in</button>
+      <button type="button" class="ghost" id="pinSkip">I don’t know</button>
+    </div>
+    <div class="verdict" id="pinVerdict" aria-hidden="true">
+      <h2 id="pinName"></h2>
+      <p id="pinNote"></p>
+      <div class="actions"><button type="button" class="go" id="pinNext">Next</button></div>
+    </div>
+    <div class="sr-only" id="pinSaid" role="status" aria-live="polite"></div>
   </div>
 
   <div id="end" hidden></div>

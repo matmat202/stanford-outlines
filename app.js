@@ -59,7 +59,7 @@
   /** The reveal map: the whole campus as it is actually built, with the answer picked
    *  out. Same geometry the big outline came from — there is no second dataset. */
   let miniBase = null;
-  function drawMini(b) {
+  function campusBase() {
     if (miniBase === null) {
       miniBase = DATA.buildings.map((x) => {
         let d = "";
@@ -69,6 +69,10 @@
         return d + "Z";
       }).join(" ");
     }
+    return miniBase;
+  }
+  function drawMini(b) {
+    campusBase();
     let one = "";
     for (let i = 0; i < b.p.length; i += 2) {
       one += (i ? "L" : "M") + b.p[i].toFixed(0) + " " + (DATA.campus.h - b.p[i + 1]).toFixed(0);
@@ -160,7 +164,7 @@
       '</ul><div class="actions"><button type="button" class="go" id="copy">Copy result</button>' +
       '<button type="button" class="ghost" id="again">Another ten</button></div>' +
       (isDaily ? '<p class="note">A new ten at midnight, campus time. Another ten is just for fun — it does not change today’s score.</p>' : "") +
-      missesHtml() + areasHtml() + "</div>";
+      missesHtml() + pinHtml() + areasHtml() + "</div>";
     $("copy").addEventListener("click", function () {
       const text = G.shareEntry(e, isDaily ? day : label);
       const done = () => { this.textContent = "Copied"; };
@@ -169,6 +173,7 @@
       } else { this.textContent = text; }
     });
     $("again").addEventListener("click", () => start((Math.random() * 4294967296) >>> 0, "A random ten", false));
+    $("pinGo").addEventListener("click", () => startPin((Math.random() * 4294967296) >>> 0, "On the map"));
     const mb = $("misses");
     if (mb) mb.addEventListener("click", startMisses);
     $("end").querySelectorAll("button[data-area]").forEach((btn) => btn.addEventListener("click", () => {
@@ -250,6 +255,137 @@
       '<ul class="dist" aria-label="Days by score, out of 10">' + rows.join("") + "</ul>";
   }
 
+
+  /* ---- pin: find it on the map --------------------------------------------
+   * The name is the question and a tap on the campus map is the answer, scored by
+   * metres from the building's walls (game-logic.js pinNearest/pinPoints). Just for
+   * fun: nothing here touches the daily record. */
+
+  let pinGame = [], pinAt = 0, pinDists = [], pinTap = null, pinLabelText = "";
+
+  function ringD(x) {
+    let d = "";
+    for (let i = 0; i < x.p.length; i += 2) {
+      d += (i ? "L" : "M") + x.p[i].toFixed(0) + " " + (DATA.campus.h - x.p[i + 1]).toFixed(0);
+    }
+    return d + "Z";
+  }
+
+  function drawPinMap(answer, tap, near) {
+    const H = DATA.campus.h;
+    let extra = "";
+    if (answer) extra += '<path class="mini-one" d="' + ringD(answer) + '"/>';
+    if (tap && near && near[2] > 0) {
+      extra += '<line class="pin-line" x1="' + tap[0].toFixed(0) + '" y1="' + (H - tap[1]).toFixed(0) +
+        '" x2="' + near[0].toFixed(0) + '" y2="' + (H - near[1]).toFixed(0) + '"/>';
+    }
+    if (tap) extra += '<circle class="pin-dot" r="26" cx="' + tap[0].toFixed(0) + '" cy="' + (H - tap[1]).toFixed(0) + '"/>';
+    $("pinMap").innerHTML =
+      '<svg viewBox="0 0 ' + DATA.campus.w + " " + H + '" role="img" aria-label="Campus map: every mapped building' +
+      (answer ? ", with " + esc(answer.n) + " picked out" : "") + '"' + (answer ? ' class="pinned"' : "") +
+      '><path class="mini-all" d="' + campusBase() + '"/>' + extra + "</svg>";
+    if (!answer) $("pinMap").querySelector("svg").addEventListener("click", pinClick);
+  }
+
+  /* A tap in screen pixels -> campus metres, through the SVG's own transform, so it is
+     right at any zoom or width. */
+  function pinClick(ev) {
+    const svg = ev.currentTarget, m = svg.getScreenCTM();
+    if (!m) return;
+    const pt = svg.createSVGPoint();
+    pt.x = ev.clientX; pt.y = ev.clientY;
+    const c = pt.matrixTransform(m.inverse());
+    pinTap = [c.x, DATA.campus.h - c.y];
+    drawPinMap(null, pinTap, null);
+    $("pinLock").disabled = false;
+  }
+
+  function startPin(seed, label) {
+    pinGame = G.pinRounds(DATA.buildings, seed, ROUNDS);
+    pinAt = 0; pinDists = []; pinLabelText = label;
+    $("game").hidden = true; $("end").hidden = true; $("pin").hidden = false;
+    $("sub").textContent = label + " · find each building on the map.";
+    showPin();
+  }
+
+  function pinTotal() { return pinDists.reduce((s, m) => s + G.pinPoints(m), 0); }
+
+  function showPin() {
+    const b = pinGame[pinAt];
+    pinTap = null;
+    $("pinLabel").textContent = "Round " + (pinAt + 1) + " of " + pinGame.length;
+    $("pinTally").textContent = pinTotal() + " points";
+    $("pinAsk").textContent = "Where is " + b.n + "?";
+    $("pinVerdict").className = "verdict";
+    $("pinVerdict").setAttribute("aria-hidden", "true");
+    $("pinActs").hidden = false; $("pinHint").hidden = false;
+    $("pinLock").disabled = true;
+    drawPinMap(null, null, null);
+  }
+
+  function lockPin(skip) {
+    if (pinDists.length > pinAt) return;
+    const b = pinGame[pinAt];
+    const near = !skip && pinTap ? G.pinNearest(pinTap, b) : null;
+    const m = near ? near[2] : Infinity;
+    pinDists.push(m);
+    const pts = G.pinPoints(m);
+    drawPinMap(b, near ? pinTap : null, near);
+    $("pinActs").hidden = true; $("pinHint").hidden = true;
+    $("pinTally").textContent = pinTotal() + " points";
+    $("pinName").textContent = b.n;
+    $("pinNote").textContent = !near ? "Skipped — this is where it is." :
+      m === 0 ? "Right on it. 100 points." :
+      Math.round(m).toLocaleString("en-US") + " m from its walls. " + pts + (pts === 1 ? " point." : " points.");
+    $("pinVerdict").className = "verdict on";
+    $("pinVerdict").setAttribute("aria-hidden", "false");
+    $("pinSaid").textContent = b.n + ": " + $("pinNote").textContent;
+    $("pinNext").textContent = pinAt + 1 < pinGame.length ? "Next" : "See the result";
+    $("pinNext").focus();
+  }
+
+  function nextPin() {
+    pinAt++;
+    if (pinAt < pinGame.length) { showPin(); $("pinAsk").scrollIntoView({ block: "nearest" }); }
+    else endPin();
+  }
+
+  const offText = (m) => !isFinite(m) ? "skipped" : m === 0 ? "on it" : Math.round(m).toLocaleString("en-US") + " m";
+
+  function endPin() {
+    const total = pinTotal(), max = pinGame.length * 100;
+    $("pin").hidden = true;
+    $("end").hidden = false;
+    $("end").innerHTML =
+      '<div class="stage final"><p class="big">' + total + "</p><p>of " + max + " · " + esc(pinLabelText) + "</p>" +
+      '<p class="sq" aria-hidden="true">' + pinDists.map(G.pinSquare).join("") + "</p>" +
+      '<ul class="recap">' + pinGame.map((b, i) => {
+        const p = G.pinPoints(pinDists[i]);
+        return '<li><span class="mark ' + (p >= 50 ? "ok" : "no") + '" aria-hidden="true">' + (p >= 50 ? "✓" : "✗") +
+          "</span><span>" + esc(b.n) + '</span><span class="m">' + offText(pinDists[i]) + "</span></li>";
+      }).join("") +
+      '</ul><div class="actions"><button type="button" class="go" id="copy">Copy result</button>' +
+      '<button type="button" class="ghost" id="pinAgain">Ten more on the map</button>' +
+      '<button type="button" class="ghost" id="toDaily">Today’s outlines</button></div>' +
+      '<p class="note">100 points within 25 m of a building’s walls, nothing from 500 m. Just for fun — today’s score is not touched.</p></div>';
+    $("copy").addEventListener("click", function () {
+      const text = G.pinShare(pinDists, pinLabelText);
+      const done = () => { this.textContent = "Copied"; };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, () => { this.textContent = text; });
+      } else { this.textContent = text; }
+    });
+    $("pinAgain").addEventListener("click", () => startPin((Math.random() * 4294967296) >>> 0, "On the map"));
+    $("toDaily").addEventListener("click", () => { $("pin").hidden = true; openDaily(); });
+    $("end").scrollIntoView({ block: "nearest" });
+  }
+
+  function pinHtml() {
+    return '<h2 class="areas-h">Find them on the map</h2>' +
+      '<p class="note">The other way round: a building’s name, and you tap where it is on campus. Scored by how many metres you are off.</p>' +
+      '<div class="actions"><button type="button" class="go" id="pinGo">Ten on the map</button></div>';
+  }
+
   /* ---- start ------------------------------------------------------------- */
 
   function start(seed, label, isDaily, from, area) {
@@ -261,6 +397,7 @@
     daily = !!isDaily;
     seedLabel = label;
     $("end").hidden = true;
+    $("pin").hidden = true;
     $("game").hidden = false;
     $("sub").textContent = label + " · tap a name, or press 1–4.";
     if (from && picked.indexOf(null) < 0) { finish(); return; }
@@ -290,23 +427,35 @@
     $("stats").textContent = DATA.counts.named + " named buildings, " +
       DATA.counts.playable + " distinctive enough to ask";
     $("next").addEventListener("click", next);
+    $("pinLock").addEventListener("click", () => lockPin(false));
+    $("pinSkip").addEventListener("click", () => lockPin(true));
+    $("pinNext").addEventListener("click", nextPin);
     /* ?seed=N plays a fixed game — for sharing one, and for the screenshot test. */
     const q = new URLSearchParams(location.search).get("seed");
+    /* ?pin=N plays a fixed map game, the same way. */
+    const pq = new URLSearchParams(location.search).get("pin");
     if (q !== null && /^\d+$/.test(q)) {
       day = G.campusDay();
       start(Number(q) >>> 0, "Game #" + (Number(q) >>> 0), false);
-    } else {
+    } else if (pq !== null && /^\d+$/.test(pq)) {
       day = G.campusDay();
-      const label = "Today’s ten · " + day;
-      const stored = loadHist().days[day];
-      const from = G.resume(stored, G.pickRounds(DATA.buildings, G.seedFor(day), ROUNDS));
-      if (!from && G.complete(stored)) {
-        /* Finished today on data that has since changed: still finished. */
-        daily = true;
-        renderEnd(stored, label, true);
-      } else {
-        start(G.seedFor(day), label, true, from);
-      }
+      startPin(Number(pq) >>> 0, "Map game #" + (Number(pq) >>> 0));
+    } else {
+      openDaily();
     }
   })();
+
+  function openDaily() {
+    day = G.campusDay();
+    const label = "Today’s ten · " + day;
+    const stored = loadHist().days[day];
+    const from = G.resume(stored, G.pickRounds(DATA.buildings, G.seedFor(day), ROUNDS));
+    if (!from && G.complete(stored)) {
+      /* Finished today on data that has since changed: still finished. */
+      daily = true;
+      renderEnd(stored, label, true);
+    } else {
+      start(G.seedFor(day), label, true, from);
+    }
+  }
 })();
