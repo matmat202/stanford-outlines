@@ -33,6 +33,13 @@ ok("data: every ring is inside the declared campus box",
    B.every((b) => b.p.every((v, i) => v >= 0 && v <= (i % 2 ? DATA.campus.h : DATA.campus.w) + 1)));
 ok("data: the playable bars are the ones build.py documents",
    B.filter((b) => b.q === 1).every((b) => b.p.length / 2 >= 8 && b.f < 0.92 && b.a >= 600));
+// Palo Alto High School sits on Stanford-leased land inside the box; build.py's not_stanfords
+// leaves it out. These names were in 27 of 30 daily puzzles before that existed.
+const PALY = ["PAHS Library", "Theater", "Science Building", "Tower Building", "Small Gym",
+  "Palo Alto Unified School District", "Escondido Elementary School", "University Lutheran Church"];
+ok("data: no Palo Alto school or church is asked or offered as a name",
+   B.every((b) => !PALY.includes(b.n)), B.filter((b) => PALY.includes(b.n)).map((b) => b.n).join(", "));
+ok("data: build.py recorded what it left out", (DATA.counts.not_stanford || 0) >= 10, `${DATA.counts.not_stanford}`);
 ok("data: no playable building is a rectangle", B.filter((b) => b.q === 1 && b.p.length === 8).length === 0);
 
 /* ---- the PRNG and the seed ------------------------------------------------ */
