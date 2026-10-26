@@ -102,6 +102,14 @@ h1{font-size:24px;margin:4px 0 2px}h1 .red{color:var(--accent)}
 .map .mini-one{stroke-width:30}
 .pin-hint{color:var(--ink-2);font-size:12px;margin:6px 0 0}
 .recap .m{margin-left:auto;color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.photo{display:block;width:100%;height:auto;max-height:52vh;object-fit:contain;border-radius:6px;background:var(--fill)}
+.year{display:flex;align-items:center;gap:8px;margin:12px 0 0}
+.year input[type=range]{flex:1;accent-color:var(--accent);min-width:0}
+.year output{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;min-width:62px;text-align:center}
+.step{font:inherit;width:38px;height:38px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);cursor:pointer}
+.step:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.credit{font-size:12px;color:var(--ink-2);margin:8px 0 0;line-height:1.45}
+.credit a{color:var(--accent)}
 footer{color:var(--ink-2);font-size:12px;margin:22px 0 8px;line-height:1.55}
 footer a{color:var(--accent)}
 .sr-only{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
@@ -148,6 +156,30 @@ footer a{color:var(--accent)}
     <div class="sr-only" id="pinSaid" role="status" aria-live="polite"></div>
   </div>
 
+  <div id="then" hidden>
+    <div class="bar">
+      <span class="round" id="thenLabel">Round 1 of 10</span>
+      <span class="tally" id="thenTally">0 points</span>
+    </div>
+    <div class="stage"><img class="photo" id="thenImg" alt=""></div>
+    <div id="thenActs">
+      <div class="year">
+        <button type="button" class="step" id="thenDown" aria-label="One year earlier">&minus;</button>
+        <input type="range" id="thenYear" min="1880" max="2000" step="1" value="1940" aria-label="Year the photo was taken">
+        <button type="button" class="step" id="thenUp" aria-label="One year later">+</button>
+        <output id="thenOut" for="thenYear">1940</output>
+      </div>
+      <div class="actions"><button type="button" class="go" id="thenLock">Lock it in</button></div>
+    </div>
+    <div class="verdict" id="thenVerdict" aria-hidden="true">
+      <h2 id="thenName"></h2>
+      <p id="thenNote"></p>
+      <p class="credit" id="thenCredit"></p>
+      <div class="actions"><button type="button" class="go" id="thenNext">Next</button></div>
+    </div>
+    <div class="sr-only" id="thenSaid" role="status" aria-live="polite"></div>
+  </div>
+
   <div id="end" hidden></div>
 
   <footer>
@@ -156,7 +188,10 @@ footer a{color:var(--accent)}
     (<span id="stats">—</span>). A new ten at midnight, Stanford time; the same ten for everyone.
     Buildings are asked only if their outline carries information — at least eight corners,
     filling less than 92% of their own bounding box, and at least 600&nbsp;m². OSM is
-    volunteer-mapped, so a name or a corner can be out of date.
+    volunteer-mapped, so a name or a corner can be out of date. The old photographs in
+    “Stanford, then” are public-domain and openly licensed files on
+    <a href="https://commons.wikimedia.org/">Wikimedia Commons</a>, each credited when it is
+    revealed. Each year is the one Commons records, and every photo was checked by eye.
     <a href="https://github.com/matmat202/stanford-outlines">Source</a>. Built by Claude for
     <a href="https://matmat202.github.io/">matmat202</a>.
   </footer>

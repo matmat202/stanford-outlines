@@ -414,6 +414,54 @@ ok("pickRounds: still works when no building is flagged",
      /— 226\/400\n/.test(sh) && sh.split("\n")[1] === "\u{1F7E9}\u{1F7E8}\u{1F7E7}\u{2B1C}", JSON.stringify(sh));
 }
 
+/* ---- then: guess the year ------------------------------------------------- */
+{
+  eq("thenPoints: the right year is full marks", G.thenPoints(1906, 1906), 100);
+  eq("thenPoints: a year off is still full marks", G.thenPoints(1905, 1906), 100);
+  eq("thenPoints: symmetric — early and late by the same are worth the same",
+     G.thenPoints(1896, 1906), G.thenPoints(1916, 1906));
+  eq("thenPoints: zero at 25 years off", G.thenPoints(1931, 1906), 0);
+  eq("thenPoints: zero beyond, never negative", G.thenPoints(1990, 1906), 0);
+  ok("thenPoints: falls monotonically", [2, 5, 10, 20, 24].map((o) => G.thenPoints(1906 + o, 1906))
+     .every((v, i, a) => i === 0 || v < a[i - 1]), [2, 5, 10, 20, 24].map((o) => G.thenPoints(1906 + o, 1906)).join());
+  eq("thenPoints: a missing guess scores 0, not NaN", G.thenPoints(undefined, 1906), 0);
+  const fake = [];
+  for (let y = 1885; y < 2000; y += 3) for (let k = 0; k < 3; k++) fake.push({ y: y, f: "F" + y + "_" + k });
+  const R = G.thenRounds(fake, 7, 10);
+  eq("thenRounds: ten rounds", R.length, 10);
+  ok("thenRounds: no file twice", new Set(R.map((p) => p.f)).size === 10);
+  let crowded = 0;
+  for (let s = 0; s < 300; s++) {
+    const per = {};
+    G.thenRounds(fake, s, 10).forEach((p) => { per[Math.floor(p.y / 10)] = (per[Math.floor(p.y / 10)] || 0) + 1; });
+    if (Object.values(per).some((c) => c > 2)) crowded++;
+  }
+  eq("thenRounds: no game in 300 seeds has three from one decade", crowded, 0);
+  eq("thenRounds: same seed, same game", G.thenRounds(fake, 7, 10).map((p) => p.f).join(), R.map((p) => p.f).join());
+  ok("thenRounds: another seed, another game", G.thenRounds(fake, 8, 10).map((p) => p.f).join() !== R.map((p) => p.f).join());
+  const sorted = R.slice().sort((a, b) => a.y - b.y).map((p) => p.f).join();
+  ok("thenRounds: not served in date order", R.map((p) => p.f).join() !== sorted);
+  const sh = G.thenShare([0, 3, 12, 40], "Game #1");
+  ok("thenShare: totals the points and draws one square per round",
+     /— 246\/400\n/.test(sh) && sh.split("\n")[1] === "\u{1F7E9}\u{1F7E8}\u{1F7E7}\u{2B1C}", JSON.stringify(sh));
+}
+
+/* ---- then: the baked photos ----------------------------------------------- */
+{
+  const T = require("./data/then.json").photos;
+  ok("then data: enough photos for many distinct games", T.length >= 60, `${T.length}`);
+  const dec = {};
+  T.forEach((p) => { dec[Math.floor(p.y / 10)] = (dec[Math.floor(p.y / 10)] || 0) + 1; });
+  const deep = Object.values(dec).filter((c) => c >= 5).length;
+  ok("then data: at least 4 decades with 5+ photos (else a game is one era guessed by default)", deep >= 4, JSON.stringify(dec));
+  ok("then data: every year is on the slider", T.every((p) => p.y >= G.THEN_MIN && p.y <= G.THEN_MAX));
+  ok("then data: every photo has a file, a year and a licence", T.every((p) => p.f && p.y && p.l));
+  ok("then data: no file twice", new Set(T.map((p) => p.f)).size === T.length);
+  let short = 0;
+  for (let s = 0; s < 200; s++) if (G.thenRounds(T, s, 10).length !== 10) short++;
+  eq("then data: 200 seeds all make a full ten under the two-per-decade rule", short, 0);
+}
+
 if (fails.length) {
   console.error(fails.map((f) => "FAIL: " + f).join("\n"));
   console.error(`${pass} passed, ${fails.length} FAILED`);

@@ -164,7 +164,7 @@
       '</ul><div class="actions"><button type="button" class="go" id="copy">Copy result</button>' +
       '<button type="button" class="ghost" id="again">Another ten</button></div>' +
       (isDaily ? '<p class="note">A new ten at midnight, campus time. Another ten is just for fun — it does not change today’s score.</p>' : "") +
-      missesHtml() + pinHtml() + areasHtml() + "</div>";
+      missesHtml() + pinHtml() + thenHtml() + areasHtml() + "</div>";
     $("copy").addEventListener("click", function () {
       const text = G.shareEntry(e, isDaily ? day : label);
       const done = () => { this.textContent = "Copied"; };
@@ -174,6 +174,7 @@
     });
     $("again").addEventListener("click", () => start((Math.random() * 4294967296) >>> 0, "A random ten", false));
     $("pinGo").addEventListener("click", () => startPin((Math.random() * 4294967296) >>> 0, "On the map"));
+    $("thenGo").addEventListener("click", () => startThen((Math.random() * 4294967296) >>> 0, "Stanford, then"));
     const mb = $("misses");
     if (mb) mb.addEventListener("click", startMisses);
     $("end").querySelectorAll("button[data-area]").forEach((btn) => btn.addEventListener("click", () => {
@@ -303,7 +304,7 @@
   function startPin(seed, label) {
     pinGame = G.pinRounds(DATA.buildings, seed, ROUNDS);
     pinAt = 0; pinDists = []; pinLabelText = label;
-    $("game").hidden = true; $("end").hidden = true; $("pin").hidden = false;
+    $("game").hidden = true; $("end").hidden = true; $("then").hidden = true; $("pin").hidden = false;
     $("sub").textContent = label + " · find each building on the map.";
     showPin();
   }
@@ -386,6 +387,114 @@
       '<div class="actions"><button type="button" class="go" id="pinGo">Ten on the map</button></div>';
   }
 
+  /* ---- then: guess the year -----------------------------------------------
+   * A dated photograph of campus; the answer is the year, scored by years off
+   * (game-logic.js thenPoints). The photos are loaded only when this mode is opened,
+   * and are shown straight from Wikimedia Commons, credited under each reveal. Just for
+   * fun: nothing here touches the daily record. */
+
+  let THEN = null, thenGame = [], thenAt = 0, thenOffs = [], thenLabelText = "";
+
+  const commonsImg = (f, w) => "https://commons.wikimedia.org/wiki/Special:FilePath/" +
+    encodeURIComponent(f) + "?width=" + w;
+  const commonsPage = (f) => "https://commons.wikimedia.org/wiki/File:" + encodeURIComponent(f.replace(/ /g, "_"));
+
+  async function startThen(seed, label) {
+    if (!THEN) {
+      try { THEN = await (await fetch("data/then.json", { cache: "no-cache" })).json(); }
+      catch (e) { $("sub").textContent = "Could not load the photos. Try reloading."; return; }
+    }
+    thenGame = G.thenRounds(THEN.photos, seed, ROUNDS);
+    thenAt = 0; thenOffs = []; thenLabelText = label;
+    $("game").hidden = true; $("end").hidden = true; $("pin").hidden = true; $("then").hidden = false;
+    $("sub").textContent = label + " · when was each photo taken?";
+    showThen();
+  }
+
+  function thenTotal() { return thenOffs.reduce((s, o) => s + (isFinite(o) ? G.thenPoints(o, 0) : 0), 0); }
+
+  function setYear(y) {
+    y = Math.max(G.THEN_MIN, Math.min(G.THEN_MAX, y));
+    $("thenYear").value = String(y);
+    $("thenOut").textContent = String(y);
+  }
+
+  function showThen() {
+    const p = thenGame[thenAt];
+    $("thenLabel").textContent = "Round " + (thenAt + 1) + " of " + thenGame.length;
+    $("thenTally").textContent = thenTotal() + " points";
+    $("thenImg").src = commonsImg(p.f, 960);
+    $("thenImg").alt = "A photograph of Stanford; when was it taken?";
+    $("thenVerdict").className = "verdict";
+    $("thenVerdict").setAttribute("aria-hidden", "true");
+    $("thenActs").hidden = false;
+    setYear(1940);
+    /* The next photo starts downloading now, so Next does not wait on Commons. */
+    if (thenGame[thenAt + 1]) new Image().src = commonsImg(thenGame[thenAt + 1].f, 960);
+  }
+
+  function lockThen() {
+    if (thenOffs.length > thenAt) return;
+    const p = thenGame[thenAt], g = Number($("thenYear").value), off = Math.abs(g - p.y);
+    thenOffs.push(off);
+    const pts = G.thenPoints(g, p.y);
+    $("thenActs").hidden = true;
+    $("thenTally").textContent = thenTotal() + " points";
+    $("thenName").textContent = String(p.y);
+    $("thenNote").textContent = (off === 0 ? "Exactly. " : "You said " + g + ", " + off + (off === 1 ? " year " : " years ") +
+      (g < p.y ? "early. " : "late. ")) + pts + (pts === 1 ? " point." : " points.") + (p.t ? " " + p.t : "");
+    $("thenCredit").innerHTML = (p.c ? esc(p.c) + " · " : "") + esc(p.l) +
+      ' · <a href="' + commonsPage(p.f) + '">Wikimedia Commons</a>';
+    $("thenImg").alt = p.t || "A photograph of Stanford, " + p.y;
+    $("thenVerdict").className = "verdict on";
+    $("thenVerdict").setAttribute("aria-hidden", "false");
+    $("thenSaid").textContent = "Taken in " + p.y + ". " + $("thenNote").textContent;
+    $("thenNext").textContent = thenAt + 1 < thenGame.length ? "Next" : "See the result";
+    $("thenNext").focus();
+  }
+
+  function nextThen() {
+    thenAt++;
+    if (thenAt < thenGame.length) { showThen(); $("then").scrollIntoView({ block: "nearest" }); }
+    else endThen();
+  }
+
+  function endThen() {
+    const total = thenTotal(), max = thenGame.length * 100;
+    $("then").hidden = true;
+    $("end").hidden = false;
+    $("end").innerHTML =
+      '<div class="stage final"><p class="big">' + total + "</p><p>of " + max + " · " + esc(thenLabelText) + "</p>" +
+      '<p class="sq" aria-hidden="true">' + thenOffs.map(G.thenSquare).join("") + "</p>" +
+      '<ul class="recap">' + thenGame.map((p, i) => {
+        const ok = G.thenPoints(thenOffs[i], 0) >= 50;
+        return '<li><span class="mark ' + (ok ? "ok" : "no") + '" aria-hidden="true">' + (ok ? "✓" : "✗") +
+          "</span><span>" + p.y + " · " + esc(p.t || p.f) + '</span><span class="m">' +
+          (thenOffs[i] === 0 ? "exact" : thenOffs[i] + " yr off") + "</span></li>";
+      }).join("") +
+      '</ul><div class="actions"><button type="button" class="go" id="copy">Copy result</button>' +
+      '<button type="button" class="ghost" id="thenAgain">Ten more photos</button>' +
+      '<button type="button" class="ghost" id="toDaily">Today’s outlines</button></div>' +
+      '<p class="note">100 points within a year, nothing from 25 years off. The dates are the ones ' +
+      'recorded on Wikimedia Commons. Just for fun — today’s score is not touched.</p></div>';
+    $("copy").addEventListener("click", function () {
+      const text = G.thenShare(thenOffs, thenLabelText);
+      const done = () => { this.textContent = "Copied"; };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, () => { this.textContent = text; });
+      } else { this.textContent = text; }
+    });
+    $("thenAgain").addEventListener("click", () => startThen((Math.random() * 4294967296) >>> 0, "Stanford, then"));
+    $("toDaily").addEventListener("click", () => { $("then").hidden = true; openDaily(); });
+    $("end").scrollIntoView({ block: "nearest" });
+  }
+
+  function thenHtml() {
+    return '<h2 class="areas-h">Stanford, then</h2>' +
+      '<p class="note">Old photographs of campus. Slide to the year you think each was taken; scored by how many years you are off.</p>' +
+      '<div class="actions"><button type="button" class="go" id="thenGo">Ten photos</button></div>';
+  }
+
   /* ---- start ------------------------------------------------------------- */
 
   function start(seed, label, isDaily, from, area) {
@@ -398,6 +507,7 @@
     seedLabel = label;
     $("end").hidden = true;
     $("pin").hidden = true;
+    $("then").hidden = true;
     $("game").hidden = false;
     $("sub").textContent = label + " · tap a name, or press 1–4.";
     if (from && picked.indexOf(null) < 0) { finish(); return; }
@@ -430,16 +540,26 @@
     $("pinLock").addEventListener("click", () => lockPin(false));
     $("pinSkip").addEventListener("click", () => lockPin(true));
     $("pinNext").addEventListener("click", nextPin);
+    $("thenLock").addEventListener("click", lockThen);
+    $("thenNext").addEventListener("click", nextThen);
+    $("thenYear").addEventListener("input", () => setYear(Number($("thenYear").value)));
+    $("thenDown").addEventListener("click", () => setYear(Number($("thenYear").value) - 1));
+    $("thenUp").addEventListener("click", () => setYear(Number($("thenYear").value) + 1));
     /* ?seed=N plays a fixed game — for sharing one, and for the screenshot test. */
     const q = new URLSearchParams(location.search).get("seed");
     /* ?pin=N plays a fixed map game, the same way. */
     const pq = new URLSearchParams(location.search).get("pin");
+    /* ?then=N plays a fixed photo game. */
+    const tq = new URLSearchParams(location.search).get("then");
     if (q !== null && /^\d+$/.test(q)) {
       day = G.campusDay();
       start(Number(q) >>> 0, "Game #" + (Number(q) >>> 0), false);
     } else if (pq !== null && /^\d+$/.test(pq)) {
       day = G.campusDay();
       startPin(Number(pq) >>> 0, "Map game #" + (Number(pq) >>> 0));
+    } else if (tq !== null && /^\d+$/.test(tq)) {
+      day = G.campusDay();
+      startThen(Number(tq) >>> 0, "Photo game #" + (Number(tq) >>> 0));
     } else {
       openDaily();
     }

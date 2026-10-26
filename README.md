@@ -54,12 +54,31 @@ A right answer there — or on a later daily — clears it; missing it again on 
 reopens it. Like the area games, this never touches the daily score. The fixes are kept
 in the browser by building name and campus day, next to the daily record.
 
+## Stanford, then
+
+A second game from the end screen: ten old photographs of Stanford, and you slide to the
+year you think each was taken. 100 points within a year, falling to nothing at 25 years
+off. No game has more than two photos from one decade, so it is never ten shots of the
+1906 earthquake.
+
+The 67 photos (1891–1995) are public-domain or openly licensed files on Wikimedia
+Commons. Each one is shown straight from Commons and credited when it is revealed. Getting
+the year from Commons' date field is the hard part, because that field is often wrong for
+this purpose. A modern photo of an 1899 mosaic is dated 1899, HABS shots carry the
+survey's 1933, and one Library of Congress print shows up as 1900 and again as 1924. So
+the list in `data/then.raw.json` is a set of photos reviewed by eye on contact sheets, out of
+208 harvested campus candidates. `build_then.py` refuses any entry that was never reviewed
+and any licence the page may not show. The 1930s–1990s are thinner (24 photos, mostly
+football), because Commons' Stanford files from those decades are mostly headshots.
+
 ## Running it
 
 ```sh
 python3 -m http.server 8000 --directory site    # then open localhost:8000
 node site/game-logic.test.mjs                   # the logic suite
 test/run-misses.sh                              # misses, end to end in Electron
+test/run-then.sh                                # Stanford, then, end to end (every photo must load)
+python3 build_then.py                           # rebake site/data/then.json from the reviewed list
 ./refetch.sh                                    # refresh the OSM extract, then rebuild
 ```
 

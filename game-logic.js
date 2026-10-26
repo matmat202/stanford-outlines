@@ -508,6 +508,43 @@
       dists.map(pinSquare).join("") + "\nhttps://matmat202.github.io/stanford-outlines/";
   }
 
+  /* ---- then: guess the year ----------------------------------------------
+   * A dated photograph of campus, and the answer is the year it was taken, scored by
+   * years off. Photos come from site/data/then.json (build_then.py), each {y, f, t, c, l}:
+   * year, Commons file name, caption, credit, licence. */
+
+  const THEN_FULL = 1, THEN_ZERO = 25, THEN_MIN = 1880, THEN_MAX = 2000;
+
+  /** 100 within a year, falling straight to 0 at 25 years off. */
+  function thenPoints(guess, year) {
+    const off = Math.abs(guess - year);
+    if (!(off >= 0)) return 0;
+    if (off <= THEN_FULL) return 100;
+    return Math.max(0, Math.round(100 * (THEN_ZERO - off) / (THEN_ZERO - THEN_FULL)));
+  }
+
+  function thenSquare(off) {
+    return !(off >= 0) ? "\u{2B1C}" : off <= THEN_FULL ? "\u{1F7E9}" : off <= 5 ? "\u{1F7E8}" : off < THEN_ZERO ? "\u{1F7E7}" : "\u{2B1C}";
+  }
+
+  /** n photos, at most two from any one decade, so a game is not ten shots of the
+   *  1906 earthquake; then shuffled, so the decades do not come in order. */
+  function thenRounds(photos, seed, n) {
+    const rnd = rng(seed), want = n || 10;
+    const out = [], per = {}, seen = {};
+    shuffled(photos, rnd).forEach(function (p) {
+      const d = Math.floor(p.y / 10);
+      if (out.length < want && (per[d] || 0) < 2 && !seen[p.f]) { per[d] = (per[d] || 0) + 1; seen[p.f] = 1; out.push(p); }
+    });
+    return out;
+  }
+
+  function thenShare(offs, label) {
+    const pts = offs.reduce(function (s, o) { return s + (o >= 0 ? thenPoints(o, 0) : 0); }, 0);
+    return "Stanford Outlines · then · " + label + " — " + pts + "/" + (offs.length * 100) + "\n" +
+      offs.map(thenSquare).join("") + "\nhttps://matmat202.github.io/stanford-outlines/";
+  }
+
   const api = {
     rng: rng, seedFor: seedFor, campusDay: campusDay, bbox: bbox, pathFor: pathFor,
     scaleBar: scaleBar, tooSimilar: tooSimilar, distractors: distractors, family: family,
@@ -518,6 +555,8 @@
     FIXED_KEY: FIXED_KEY, parseFixed: parseFixed, fix: fix, misses: misses, missRounds: missRounds,
     pinPool: pinPool, pinRounds: pinRounds, inside: inside, pinNearest: pinNearest, pinDistance: pinDistance,
     pinPoints: pinPoints, pinSquare: pinSquare, pinShare: pinShare, PIN_FULL: PIN_FULL, PIN_ZERO: PIN_ZERO,
+    thenPoints: thenPoints, thenSquare: thenSquare, thenRounds: thenRounds, thenShare: thenShare,
+    THEN_FULL: THEN_FULL, THEN_ZERO: THEN_ZERO, THEN_MIN: THEN_MIN, THEN_MAX: THEN_MAX,
     MIN_VERTS: 8, MAX_FILL: 0.92, MIN_AREA: 600,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
