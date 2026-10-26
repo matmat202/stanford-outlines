@@ -10,7 +10,19 @@
   const SIDE = 460;            /* the outline canvas, in SVG units */
   const SVGNS = "http://www.w3.org/2000/svg";
 
-  let DATA = null, rounds = [], at = 0, picked = [], day = "", seedLabel = "";
+  let DATA = null, rounds = [], at = 0, picked = [], day = "", seedLabel = "", daily = false;
+
+  /* The daily record (game-logic.js has the why). Storage can be absent or refuse a
+   * write (private mode, a full quota); the game must still play, just unremembered. */
+  function loadHist() {
+    try { return G.parseHistory(localStorage.getItem(G.KEY)); } catch (e) { return { days: {} }; }
+  }
+  function saveDay() {
+    if (!daily) return;
+    try {
+      localStorage.setItem(G.KEY, JSON.stringify(G.record(loadHist(), day, G.entryFor(picked, rounds))));
+    } catch (e) { /* unremembered, still playable */ }
+  }
 
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -78,6 +90,7 @@
     if (picked[at] != null) return;
     const r = rounds[at];
     picked[at] = i;
+    saveDay();
     const right = i === r.correct;
     $("choices").querySelectorAll("button").forEach((btn) => {
       const k = Number(btn.dataset.i);
@@ -110,41 +123,73 @@
   /* ---- the end ----------------------------------------------------------- */
 
   function finish() {
-    const s = G.score(picked, rounds);
+    renderEnd(G.entryFor(picked, rounds), seedLabel, daily);
+  }
+
+  /** The end screen, drawn from a stored entry rather than from the live rounds, so a
+   *  reload of a finished day shows the same thing whether or not the rounds can still
+   *  be rebuilt from today's data. */
+  function renderEnd(e, label, isDaily) {
+    const total = e.n.length, right = G.rightCount(e);
+    const okAt = (i) => e.c[i] != null && e.c[i] === e.n[i];
     $("game").hidden = true;
-    const squares = rounds.map((r, i) => picked[i] === r.correct ? "\u{1F7E9}" : "\u{2B1C}").join("");
+    $("sub").textContent = label;
+    const squares = e.n.map((n, i) => okAt(i) ? "\u{1F7E9}" : "\u{2B1C}").join("");
     $("end").hidden = false;
     $("end").innerHTML =
-      '<div class="stage final"><p class="big">' + s.right + "/" + s.total + "</p>" +
-      "<p>" + esc(seedLabel) + '</p><p class="sq" aria-hidden="true">' + squares + "</p>" +
-      '<ul class="recap">' + rounds.map((r, i) =>
-        '<li><span class="mark ' + (picked[i] === r.correct ? "ok" : "no") + '" aria-hidden="true">' +
-        (picked[i] === r.correct ? "✓" : "✗") + "</span><span>" + esc(r.answer.n) +
-        (picked[i] === r.correct ? "" : " <em>— you said " +
-          esc(r.choices[picked[i]] || "nothing") + "</em>") + "</span></li>").join("") +
+      '<div class="stage final"><p class="big">' + right + "/" + total + "</p>" +
+      "<p>" + esc(label) + '</p><p class="sq" aria-hidden="true">' + squares + "</p>" +
+      (isDaily ? statsHtml(right) : "") +
+      '<ul class="recap">' + e.n.map((n, i) =>
+        '<li><span class="mark ' + (okAt(i) ? "ok" : "no") + '" aria-hidden="true">' +
+        (okAt(i) ? "✓" : "✗") + "</span><span>" + esc(n) +
+        (okAt(i) ? "" : " <em>— you said " + esc(e.c[i] || "nothing") + "</em>") +
+        "</span></li>").join("") +
       '</ul><div class="actions"><button type="button" class="go" id="copy">Copy result</button>' +
-      '<button type="button" class="ghost" id="again">Another ten</button></div></div>';
+      '<button type="button" class="ghost" id="again">Another ten</button></div>' +
+      (isDaily ? '<p class="note">A new ten at midnight, campus time. Another ten is just for fun — it does not change today’s score.</p>' : "") +
+      "</div>";
     $("copy").addEventListener("click", function () {
-      const text = G.shareText(picked, rounds, day);
+      const text = G.shareEntry(e, isDaily ? day : label);
       const done = () => { this.textContent = "Copied"; };
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).then(done, () => { this.textContent = text; });
       } else { this.textContent = text; }
     });
-    $("again").addEventListener("click", () => start((Math.random() * 4294967296) >>> 0, "A random ten"));
+    $("again").addEventListener("click", () => start((Math.random() * 4294967296) >>> 0, "A random ten", false));
     $("end").scrollIntoView({ block: "nearest" });
+  }
+
+  function statsHtml(today) {
+    const st = G.stats(loadHist(), day);
+    if (!st.played) return "";
+    const top = Math.max.apply(null, st.dist) || 1;
+    const rows = [];
+    for (let k = st.dist.length - 1; k >= 0; k--) {
+      if (k > 10 && !st.dist[k]) continue;
+      rows.push('<li' + (k === today ? ' class="now"' : "") + '><span class="k">' + k +
+        '</span><span class="bar"><span style="width:' + Math.max(st.dist[k] ? 6 : 0, Math.round(100 * st.dist[k] / top)) +
+        '%"></span></span><span class="v">' + st.dist[k] + "</span></li>");
+    }
+    return '<dl class="nums">' +
+      "<div><dt>Played</dt><dd>" + st.played + "</dd></div>" +
+      "<div><dt>Streak</dt><dd>" + st.streak + "</dd></div>" +
+      "<div><dt>Best streak</dt><dd>" + st.best + "</dd></div></dl>" +
+      '<ul class="dist" aria-label="Days by score, out of 10">' + rows.join("") + "</ul>";
   }
 
   /* ---- start ------------------------------------------------------------- */
 
-  function start(seed, label) {
+  function start(seed, label, isDaily, from) {
     rounds = G.pickRounds(DATA.buildings, seed, ROUNDS);
-    picked = [];
-    at = 0;
+    picked = from || [];
+    at = from ? Math.max(0, picked.indexOf(null)) : 0;
+    daily = !!isDaily;
     seedLabel = label;
     $("end").hidden = true;
     $("game").hidden = false;
     $("sub").textContent = label + " · tap a name, or press 1–4.";
+    if (from && picked.indexOf(null) < 0) { finish(); return; }
     showRound();
   }
 
@@ -174,10 +219,19 @@
     const q = new URLSearchParams(location.search).get("seed");
     if (q !== null && /^\d+$/.test(q)) {
       day = G.campusDay();
-      start(Number(q) >>> 0, "Game #" + (Number(q) >>> 0));
+      start(Number(q) >>> 0, "Game #" + (Number(q) >>> 0), false);
     } else {
       day = G.campusDay();
-      start(G.seedFor(day), "Today’s ten · " + day);
+      const label = "Today’s ten · " + day;
+      const stored = loadHist().days[day];
+      const from = G.resume(stored, G.pickRounds(DATA.buildings, G.seedFor(day), ROUNDS));
+      if (!from && G.complete(stored)) {
+        /* Finished today on data that has since changed: still finished. */
+        daily = true;
+        renderEnd(stored, label, true);
+      } else {
+        start(G.seedFor(day), label, true, from);
+      }
     }
   })();
 })();

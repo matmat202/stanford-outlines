@@ -29,6 +29,11 @@ field without handing the answer over. Two rules keep a round answerable:
 The puzzle is seeded by the date **in Stanford's time zone**, so everyone gets the same
 ten whatever clock their phone is on. `?seed=N` plays a fixed game.
 
+The day is remembered in the browser (localStorage, nothing leaves the phone): a reload
+resumes where you were, a finished day shows its result rather than a replay, and the end
+screen counts days played, the current and best streak, and how your days have scored.
+Answers are stored by building name, so a later data rebuild cannot rescore a past day.
+
 ## Running it
 
 ```sh

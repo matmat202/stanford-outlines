@@ -181,18 +181,125 @@
   /** The copyable result. No board, no spoilers: squares only, like the puzzle games
    *  this borrows the idea from, so pasting it cannot give the day away. */
   function shareText(picked, rounds, day) {
-    const s = score(picked, rounds);
-    const squares = rounds.map(function (r, i) {
-      return picked[i] === r.correct ? "\u{1F7E9}" : "\u{2B1C}";
+    return shareEntry(entryFor(picked, rounds), day);
+  }
+
+  /** The same text from a stored day — what a reloaded end screen copies. */
+  function shareEntry(e, day) {
+    const squares = e.n.map(function (n, i) {
+      return e.c[i] != null && e.c[i] === n ? "\u{1F7E9}" : "\u{2B1C}";
     }).join("");
-    return "Stanford Outlines " + day + "  " + s.right + "/" + s.total + "\n" +
+    return "Stanford Outlines " + day + "  " + rightCount(e) + "/" + e.n.length + "\n" +
       squares + "\nhttps://matmat202.github.io/stanford-outlines/";
+  }
+
+  /* ---- the daily record ----------------------------------------------------
+   * A daily puzzle that forgets you played it is not a daily puzzle: a reload handed
+   * back round 1, so today's ten could be replayed until perfect, and nothing knew a
+   * streak existed. What is kept per campus day is the ten ANSWER NAMES and what was
+   * chosen, by name — not indices into a round list. buildings.json is rebuilt on
+   * republish, and if today's rounds come out different after that, a stored index
+   * would silently point at another building; a stored name cannot. */
+
+  const KEY = "outlines.v1";
+
+  /** One day's entry from a game in progress: n = the answers, c = the names chosen
+   *  (null where not yet answered). */
+  function entryFor(picked, rounds) {
+    return {
+      n: rounds.map(function (r) { return r.answer.n; }),
+      c: rounds.map(function (r, i) { return picked[i] == null ? null : r.choices[picked[i]]; }),
+    };
+  }
+
+  function complete(e) {
+    return !!e && Array.isArray(e.c) && e.c.length > 0 && e.c.every(function (x) { return x != null; });
+  }
+
+  function rightCount(e) {
+    let k = 0;
+    for (let i = 0; i < e.n.length; i++) if (e.c[i] != null && e.c[i] === e.n[i]) k++;
+    return k;
+  }
+
+  /** A stored record, from whatever localStorage held: junk, an old shape, or nothing
+   *  all read as an empty history rather than throwing the game away on load. */
+  function parseHistory(raw) {
+    let h = null;
+    try { h = JSON.parse(raw); } catch (e) { h = null; }
+    if (!h || typeof h !== "object" || !h.days || typeof h.days !== "object" || Array.isArray(h.days)) {
+      return { days: {} };
+    }
+    const days = {};
+    Object.keys(h.days).forEach(function (d) {
+      const e = h.days[d];
+      if (/^\d{4}-\d{2}-\d{2}$/.test(d) && e && Array.isArray(e.n) && Array.isArray(e.c) &&
+          e.n.length === e.c.length && e.n.length > 0) days[d] = { n: e.n, c: e.c };
+    });
+    return { days: days };
+  }
+
+  /** Record progress on `day`. A finished day is never overwritten: the first full game
+   *  is the day's result, so replaying after a reload cannot improve it. Returns a new
+   *  history; the old one is not mutated. */
+  function record(hist, day, entry) {
+    const days = Object.assign({}, hist.days);
+    if (!complete(days[day])) days[day] = { n: entry.n.slice(), c: entry.c.slice() };
+    return { days: days };
+  }
+
+  /** What to do with today's rounds given a stored entry: picked indices to resume
+   *  from, or null when the entry is for a different ten (data changed) or absent. */
+  function resume(entry, rounds) {
+    if (!entry || entry.n.length !== rounds.length) return null;
+    for (let i = 0; i < rounds.length; i++) if (entry.n[i] !== rounds[i].answer.n) return null;
+    const picked = [];
+    for (let i = 0; i < rounds.length; i++) {
+      if (entry.c[i] == null) { picked.push(null); continue; }
+      const k = rounds[i].choices.indexOf(entry.c[i]);
+      if (k < 0) return null;
+      picked.push(k);
+    }
+    /* Answers are given in order, so a gap before a later answer is a corrupt entry. */
+    const first = picked.indexOf(null);
+    if (first >= 0 && picked.slice(first).some(function (x) { return x != null; })) return null;
+    return picked;
+  }
+
+  /** "2026-10-26" -> "2026-10-25", by calendar, in UTC so no DST hour can skip a day. */
+  function prevDay(d) {
+    const t = Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) - 86400000;
+    return new Date(t).toISOString().slice(0, 10);
+  }
+
+  /** played, current streak, best streak, and how many days scored each 0..n. A streak
+   *  is consecutive campus days with a finished game; it is still alive today if
+   *  yesterday was played and today is not yet, because the day is not over. */
+  function stats(hist, today) {
+    const done = Object.keys(hist.days).filter(function (d) { return complete(hist.days[d]); }).sort();
+    const set = new Set(done);
+    let size = 0;
+    done.forEach(function (d) { size = Math.max(size, hist.days[d].n.length); });
+    const dist = new Array(Math.max(size, 10) + 1).fill(0);
+    done.forEach(function (d) { dist[rightCount(hist.days[d])]++; });
+    let best = 0, run = 0, prev = null;
+    done.forEach(function (d) {
+      run = prev !== null && prevDay(d) === prev ? run + 1 : 1;
+      if (run > best) best = run;
+      prev = d;
+    });
+    let streak = 0;
+    let d = set.has(today) ? today : prevDay(today);
+    while (set.has(d)) { streak++; d = prevDay(d); }
+    return { played: done.length, streak: streak, best: best, dist: dist };
   }
 
   const api = {
     rng: rng, seedFor: seedFor, campusDay: campusDay, bbox: bbox, pathFor: pathFor,
     scaleBar: scaleBar, tooSimilar: tooSimilar, distractors: distractors, family: family,
-    shuffled: shuffled, pickRounds: pickRounds, score: score, shareText: shareText,
+    shuffled: shuffled, pickRounds: pickRounds, score: score, shareText: shareText, shareEntry: shareEntry,
+    KEY: KEY, entryFor: entryFor, complete: complete, rightCount: rightCount,
+    parseHistory: parseHistory, record: record, resume: resume, prevDay: prevDay, stats: stats,
     MIN_VERTS: 8, MAX_FILL: 0.92, MIN_AREA: 600,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;

@@ -202,6 +202,79 @@ ok("pickRounds: honours a different quota", G.pickRounds(B, seed, 10, 4, 0)
 ok("pickRounds: still works when no building is flagged",
    G.pickRounds(B.map((b) => Object.assign({}, b, { w: 0 })), seed, 10).length === 10);
 
+/* ---- the daily record: a reload must not hand back round 1 ---------------- */
+{
+  const day = "2026-10-26";
+  const R10 = G.pickRounds(B, G.seedFor(day), 10);
+  const allRight = R10.map((r) => r.correct);
+  const wrongAt = (i) => (R10[i].correct + 1) % R10[i].choices.length;
+  const half = allRight.slice(0, 4).concat(Array(6).fill(null));
+  const H0 = G.parseHistory(null);
+  eq("history: nothing stored reads as empty", Object.keys(H0.days).length, 0);
+  for (const junk of ["{", "null", "[]", '{"days":[]}', '{"days":{"x":1}}', '{"days":{"2026-10-26":{"n":["a"],"c":[]}}}'])
+    eq("history: junk reads as empty: " + junk, Object.keys(G.parseHistory(junk).days).length, 0);
+
+  // resume mid-game, by name
+  const Hh = G.record(H0, day, G.entryFor(half, R10));
+  eq("history: record does not mutate its input", Object.keys(H0.days).length, 0);
+  const back = G.parseHistory(JSON.stringify(Hh));
+  ok("resume: a half-played day comes back at round 5 with the same picks",
+     JSON.stringify(G.resume(back.days[day], R10)) === JSON.stringify(half));
+  ok("resume: an entry for a different ten is refused, not misapplied",
+     G.resume(back.days[day], G.pickRounds(B, G.seedFor("2026-10-27"), 10)) === null);
+  eq("resume: same choices but a different answer is refused (the answer is what is stored)",
+     G.resume(back.days[day], R10.map((r, i) => i === 7 ? Object.assign({}, r, { answer: { n: "Elsewhere" } }) : r)), null);
+  const gap = G.entryFor(half, R10); gap.c[1] = null;
+  eq("resume: an entry with a gap before a later answer is refused", G.resume(gap, R10), null);
+  const renamed = G.entryFor(half, R10); renamed.c[0] = "No Such Building";
+  eq("resume: a chosen name not among today's choices is refused", G.resume(renamed, R10), null);
+  ok("resume: choices are matched by name, not index",
+     (function () {
+       const shifted = R10.map((r) => Object.assign({}, r, { choices: r.choices.slice().reverse(),
+         correct: r.choices.length - 1 - r.correct }));
+       const p = G.resume(G.entryFor(half, R10), shifted);
+       return p && p.slice(0, 4).every((k, i) => shifted[i].choices[k] === R10[i].answer.n);
+     })());
+
+  // a finished day is final
+  const done = allRight.slice(); done[3] = wrongAt(3);
+  const Hd = G.record(Hh, day, G.entryFor(done, R10));
+  ok("record: a finished day is complete", G.complete(Hd.days[day]));
+  eq("record: the finished day scores 9", G.rightCount(Hd.days[day]), 9);
+  const Hr = G.record(Hd, day, G.entryFor(allRight, R10));
+  eq("record: replaying a finished day cannot improve it", G.rightCount(Hr.days[day]), 9);
+  ok("record: partial progress is overwritten by more progress",
+     G.complete(G.record(Hh, day, G.entryFor(allRight, R10)).days[day]));
+  ok("resume: a finished day resumes with no unanswered round",
+     G.resume(Hd.days[day], R10).indexOf(null) === -1);
+  eq("shareEntry: a stored day copies the same text as the live game",
+     G.shareEntry(Hd.days[day], day), G.shareText(done, R10, day));
+
+  // dates and streaks
+  eq("prevDay: across a month", G.prevDay("2026-11-01"), "2026-10-31");
+  eq("prevDay: across a year", G.prevDay("2027-01-01"), "2026-12-31");
+  eq("prevDay: leap day", G.prevDay("2028-03-01"), "2028-02-29");
+  eq("prevDay: the DST fall-back day is one day", G.prevDay("2026-11-02"), "2026-11-01");
+  const fin = (r) => ({ n: Array(10).fill("A"), c: Array(10).fill(null).map((_, i) => (i < r ? "A" : "B")) });
+  const H = { days: { "2026-10-20": fin(3), "2026-10-21": fin(5), "2026-10-22": fin(5),
+    "2026-10-24": fin(7), "2026-10-25": fin(10), "2026-10-26": { n: Array(10).fill("A"), c: ["A"].concat(Array(9).fill(null)) } } };
+  // inserted out of order on purpose: stats must sort
+  const Hs = { days: { "2026-10-25": H.days["2026-10-25"], "2026-10-20": H.days["2026-10-20"],
+    "2026-10-24": H.days["2026-10-24"], "2026-10-22": H.days["2026-10-22"], "2026-10-21": H.days["2026-10-21"],
+    "2026-10-26": H.days["2026-10-26"] } };
+  const st = G.stats(Hs, "2026-10-26");
+  eq("stats: an unfinished day is not played", st.played, 5);
+  eq("stats: streak survives a today not yet finished", st.streak, 2);
+  eq("stats: best streak is the longest run, not the latest", st.best, 3);
+  eq("stats: distribution counts a score twice", st.dist[5], 2);
+  eq("stats: distribution has a 10 slot", st.dist[10], 1);
+  eq("stats: distribution has a 0 slot", st.dist.length, 11);
+  eq("stats: a missed day breaks the streak", G.stats(Hs, "2026-10-27").streak, 0);
+  eq("stats: finishing today extends the streak",
+     G.stats(G.record(Hs, "2026-10-26", fin(4)), "2026-10-26").streak, 3);
+  eq("stats: empty history", G.stats(H0, day).played, 0);
+}
+
 if (fails.length) {
   console.error(fails.map((f) => "FAIL: " + f).join("\n"));
   console.error(`${pass} passed, ${fails.length} FAILED`);
