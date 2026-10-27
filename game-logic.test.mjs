@@ -141,6 +141,57 @@ ok("pickRounds: every answer is from the playable pool", R.every((r) => r.answer
 ok("pickRounds: refuses a pool it cannot fill",
    (function () { try { G.pickRounds(B.slice(0, 2), seed, 10); return false; } catch (e) { return true; } })());
 
+/* ---- the days already served, pinned by name ------------------------------
+ * Everything above checks that a day reproduces ITSELF, which every rng, hash, shuffle
+ * and landmark constant satisfies no matter what it deals. So the whole dealing path was
+ * unguarded: change the FNV offset, the Fisher-Yates bound, the `30` nearest-by-area
+ * slice or the 4 landmarks, and these tests stay green while every past day re-deals.
+ *
+ * That is not a cosmetic change. A stored day is matched back by building NAME
+ * (`resume()` compares entry.n[i] to rounds[i].answer.n), so a re-deal silently discards
+ * the player's completed day, breaks every `?day=` replay and invalidates the streak in
+ * `stats()`. These two days have been served to the public — the site went live
+ * 2026-10-26 — and `game-logic.js`, `app.js` and `data/buildings.json` were verified
+ * byte-identical to https://matmat202.github.io/stanford-outlines/ when these were taken.
+ *
+ * A future session changing the dealing on purpose must re-pin these from the LIVE site,
+ * never from the edited local file, and must accept that days already played are lost.
+ */
+const SERVED = {
+  "2026-10-26": {
+    answers: ["Stanford Cancer Center", "East Wing", "Meier Hall", "Jack McDonald Hall",
+      "Lyman Building 3", "James H. Clark Center",
+      "Center for Advanced Study in the Behavioral Sciences", "Kimball Hall",
+      "Hewlett Teaching Center", "Pi Beta Phi House"],
+    correct: [0, 1, 1, 3, 0, 3, 0, 1, 1, 2],
+    round0: ["Stanford Cancer Center", "Arrillaga Family Sports Center", "Bing Wing",
+      "Beckman Center for Molecular and Genetic Medicine"],
+  },
+  "2026-10-27": {
+    answers: ["East Wing", "Encina Commons", "Kimball Hall", "Sequoia Hall", "Rinconada",
+      "Jack McDonald Hall", "Beckman Center for Molecular and Genetic Medicine",
+      "Frances C. Arrillaga Alumni Center", "Mirrielees", "Lathrop Library"],
+    correct: [1, 3, 3, 2, 2, 3, 1, 3, 1, 2],
+    round0: ["Computing & Data Science", "East Wing", "Stanford ChEM-H Building",
+      "Branner Hall"],
+  },
+};
+for (const [day, want] of Object.entries(SERVED)) {
+  const got = G.pickRounds(B, G.seedFor(day), 10);
+  ok(`served ${day}: the ten buildings are the ones that were played`,
+     JSON.stringify(got.map((r) => r.answer.n)) === JSON.stringify(want.answers),
+     JSON.stringify(got.map((r) => r.answer.n)));
+  // The wrong names and their order are part of the served puzzle too: distractors()
+  // and the per-round shuffle have their own constants, and a stored pick is an INDEX
+  // into this list, so re-ordering the choices re-scores a finished day.
+  ok(`served ${day}: the answer sits in the slot it was played in`,
+     JSON.stringify(got.map((r) => r.correct)) === JSON.stringify(want.correct),
+     JSON.stringify(got.map((r) => r.correct)));
+  ok(`served ${day}: round 1 offers the same four names in the same order`,
+     JSON.stringify(got[0].choices) === JSON.stringify(want.round0),
+     JSON.stringify(got[0].choices));
+}
+
 /* ---- scoring and sharing -------------------------------------------------- */
 const allRight = R.map((r) => r.correct);
 eq("score: a perfect game", G.score(allRight, R).right, 10);
@@ -282,6 +333,78 @@ ok("pickRounds: still works when no building is flagged",
   eq("stats: empty history", G.stats(H0, day).played, 0);
 }
 
+/* ---- what a stored day must and must not be accepted as --------------------
+ * Everything above this block exercised the ten-round daily, which is the only shape
+ * the daily ever has. But parseHistory/complete/resume are the LOAD path: they read
+ * whatever localStorage holds, including a record written by an older build or by
+ * another tab, and a misses game is 1..9 rounds, not 10. Nothing checked either edge,
+ * so the length guards and the first-round comparison were unguarded in both
+ * directions — too strict and too lax both passed.
+ */
+{
+  const one = { n: ["Meier Hall"], c: ["Meier Hall"] };
+  const R10 = G.pickRounds(B, G.seedFor("2026-10-26"), 10);
+
+  // --- complete(): the bounds, from both sides
+  ok("complete: a one-round entry is finished (a misses game can be one round)",
+     G.complete(one));
+  ok("complete: an entry with no rounds at all is NOT finished",
+     !G.complete({ n: [], c: [] }));
+  ok("complete: an unanswered round is not finished", !G.complete({ n: ["A"], c: [null] }));
+
+  // --- parseHistory(): more shapes of junk, and the one-round day it must KEEP
+  for (const junk of ["{}", '{"days":5}', '{"days":"x"}', '{"days":null}', "5", '"text"',
+                      '{"days":{"2026-10-26":{"n":[],"c":[]}}}',
+                      '{"days":{"26-10-26":{"n":["A"],"c":["A"]}}}'])
+    eq("history: junk reads as empty: " + junk, Object.keys(G.parseHistory(junk).days).length, 0);
+  eq("history: a one-round day is kept, not discarded as malformed",
+     Object.keys(G.parseHistory(JSON.stringify({ days: { "2026-10-26": one } })).days).length, 1);
+
+  // --- resume(): the first round is part of the comparison, and so is a gap at 0
+  eq("resume: no stored entry at all is null, not a throw", G.resume(null, R10), null);
+  eq("resume: undefined is null, not a throw", G.resume(undefined, R10), null);
+  eq("resume: a different FIRST building is refused — the re-deal case, and the one a "
+     + "loop starting at round 1 would wave through",
+     G.resume(Object.assign({}, G.entryFor(R10.map((r) => r.correct), R10),
+                            { n: ["Elsewhere"].concat(R10.slice(1).map((r) => r.answer.n)) }),
+              R10),
+     null);
+  {
+    // A gap at index 0 with a later answer: answers are given in order, so this is
+    // corrupt. `first >= 0` must include round 0 itself.
+    const g = G.entryFor(R10.map((r) => r.correct), R10);
+    g.c[0] = null;
+    eq("resume: a gap at round 1 with later answers is refused", G.resume(g, R10), null);
+  }
+
+  // --- stats() on an empty history: every figure is zero, not just `played`
+  const empty = G.stats({ days: {} }, "2026-10-26");
+  eq("stats: empty history has played 0", empty.played, 0);
+  eq("stats: empty history has NO best streak", empty.best, 0);
+  eq("stats: empty history has no current streak", empty.streak, 0);
+
+  // --- shareEntry: the squares have to mean what they say
+  // COUNTING the greens is not enough and this test said so the hard way: flipping
+  // `===` to `!==` in shareEntry greens the WRONG rounds and blanks the right one,
+  // which leaves the counts identical. The grid has to be pinned position by position,
+  // and against a case where the right answer is not the first round — otherwise
+  // "one green somewhere" passes either way. rightCount keeps using `===`, so under
+  // that mutant the header says 1/3 while the grid shows the wrong square green.
+  {
+    const GREEN = "\u{1F7E9}", BLANK = "\u{2B1C}";
+    const line = (e) => G.shareEntry(e, "2026-10-26").split("\n")[1];
+    eq("share: right, wrong, unanswered -> green, blank, blank",
+       line({ n: ["A", "B", "C"], c: ["A", "Wrong", null] }), GREEN + BLANK + BLANK);
+    eq("share: the green moves with the right answer, it is not just a count",
+       line({ n: ["A", "B", "C"], c: ["Wrong", "B", null] }), BLANK + GREEN + BLANK);
+    eq("share: an all-wrong game has no green at all",
+       line({ n: ["A", "B"], c: ["x", "y"] }), BLANK + BLANK);
+    eq("share: the header score agrees with the grid",
+       G.shareEntry({ n: ["A", "B", "C"], c: ["A", "Wrong", null] }, "2026-10-26")
+         .split("\n")[0].slice(-3), "1/3");
+  }
+}
+
 /* ---- areas: practise one part of campus ----------------------------------- */
 {
   const A = G.areas(B);
@@ -414,6 +537,82 @@ ok("pickRounds: still works when no building is flagged",
      /— 226\/400\n/.test(sh) && sh.split("\n")[1] === "\u{1F7E9}\u{1F7E8}\u{1F7E7}\u{2B1C}", JSON.stringify(sh));
 }
 
+/* ---- the exact edges of every shared square -------------------------------
+ * The equivalence sweep (game-logic.equiv-sweep.mjs) said these bands DO change what a
+ * player sees, and nothing here pinned them: every threshold was checked only well
+ * inside a band, so `<=` -> `<` at any boundary passed. A square is the whole shared
+ * result, so an off-by-one at the edge silently re-grades a game.
+ */
+{
+  const GREEN = "\u{1F7E9}", YELLOW = "\u{1F7E8}", ORANGE = "\u{1F7E7}", BLANK = "\u{2B1C}";
+  // pin: on it (<=25 m), close (<=150), near (<=500), off. Both sides of each edge.
+  for (const [m, want, why] of [
+    [0, GREEN, "a tap inside the building"],
+    [G.PIN_FULL, GREEN, "exactly PIN_FULL is still ON it"],
+    [G.PIN_FULL + 1, YELLOW, "one metre past PIN_FULL is only close"],
+    [150, YELLOW, "exactly 150 m is still close"],
+    [151, ORANGE, "one metre past 150 is only near"],
+    [G.PIN_ZERO, ORANGE, "exactly PIN_ZERO is still near"],
+    [G.PIN_ZERO + 1, BLANK, "past PIN_ZERO is off the map"],
+  ]) eq(`pinSquare: ${m} m — ${why}`, G.pinSquare(m), want);
+  eq("pinPoints: exactly PIN_FULL is a full hundred", G.pinPoints(G.PIN_FULL), 100);
+  eq("pinPoints: exactly PIN_ZERO scores nothing", G.pinPoints(G.PIN_ZERO), 0);
+  eq("pinPoints: past PIN_ZERO never goes negative", G.pinPoints(G.PIN_ZERO * 3), 0);
+  eq("pinPoints: an unplayed round is not a hundred", G.pinPoints(NaN), 0);
+  eq("pinPoints: a negative distance is not a hundred", G.pinPoints(-1), 0);
+
+  // then: THEN_FULL years is spot on, <=5 close, then orange UP TO but NOT including
+  // THEN_ZERO — the one band whose edge is `<`, not `<=`.
+  for (const [off, want, why] of [
+    [0, GREEN, "the exact year"],
+    [G.THEN_FULL, GREEN, "exactly THEN_FULL years out is still spot on"],
+    [G.THEN_FULL + 1, YELLOW, "one year past THEN_FULL is only close"],
+    [5, YELLOW, "exactly five years out is still close"],
+    [6, ORANGE, "six years out is only near"],
+    [G.THEN_ZERO - 1, ORANGE, "one year inside THEN_ZERO is still near"],
+    [G.THEN_ZERO, BLANK, "exactly THEN_ZERO is OFF, not near — this edge is < not <="],
+    [-1, BLANK, "a round never answered"],
+    [NaN, BLANK, "a round with no guess at all"],
+  ]) eq(`thenSquare: ${off} — ${why}`, G.thenSquare(off), want);
+  eq("thenPoints: the exact year is a hundred", G.thenPoints(1906, 1906), 100);
+  eq("thenPoints: THEN_FULL out is still a hundred", G.thenPoints(1906 + G.THEN_FULL, 1906), 100);
+  eq("thenPoints: THEN_ZERO out scores nothing", G.thenPoints(1906 + G.THEN_ZERO, 1906), 0);
+  eq("thenPoints: a wild guess never goes negative", G.thenPoints(1500, 1906), 0);
+
+  // pinPool's area floor: a building sitting exactly ON the floor is askable.
+  {
+    const ring = [0, 0, 0, 10, 10, 10, 10, 0];
+    const mk = (n, a, w) => ({ n, a, w, q: 1, f: 0.5, p: ring });
+    const pool = G.pinPool([mk("Exactly", 1000, 0), mk("Just under", 999, 0),
+                            mk("Tiny but notable", 1, 1)]).map((b) => b.n);
+    ok("pinPool: a building exactly on the area floor is askable",
+       pool.includes("Exactly"), pool.join("|"));
+    ok("pinPool: one square metre under the floor is not", !pool.includes("Just under"),
+       pool.join("|"));
+    ok("pinPool: a notable building is asked however small", pool.includes("Tiny but notable"));
+  }
+}
+
+/* ---- misses: two missed on the SAME day are ordered by name ----------------
+ * The queue is newest-miss-first; the tie-break is the only thing that decides the
+ * order of a day's own misses, and every earlier check used distinct days, so the
+ * whole tie branch was unguarded. Three names, handed over in reverse, because V8
+ * compares a single pair for a two-element array.
+ */
+{
+  const P = B.filter((b) => b.q === 1).map((b) => b.n).slice().sort();
+  const [n1, n2, n3] = [P[0], P[1], P[2]];
+  const wrong = "Not A Building";
+  const hist = { days: { "2026-10-20": { n: [n3, n2, n1], c: [wrong, wrong, wrong] } } };
+  eq("misses: same-day misses come back in name order, not storage order",
+     G.misses(hist, {}, B).map((b) => b.n).join("|"), [n1, n2, n3].join("|"));
+  const mixed = { days: {
+    "2026-10-20": { n: [n3, n1], c: [wrong, wrong] },
+    "2026-10-22": { n: [n2], c: [wrong] } } };
+  eq("misses: a newer miss still outranks the name order",
+     G.misses(mixed, {}, B).map((b) => b.n).join("|"), [n2, n1, n3].join("|"));
+}
+
 /* ---- then: guess the year ------------------------------------------------- */
 {
   eq("thenPoints: the right year is full marks", G.thenPoints(1906, 1906), 100);
@@ -467,4 +666,4 @@ if (fails.length) {
   console.error(`${pass} passed, ${fails.length} FAILED`);
   process.exit(1);
 }
-console.log(`${pass} checks passed`);
+console.log(`${pass} passed, 0 failed`);
