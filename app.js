@@ -76,6 +76,12 @@
     if (u) $(id).href = u; else $(id).removeAttribute("href");
     $(id).hidden = !u;
   }
+  /* A recap row's name, linked to the building on OSM when today's data still has it. The
+     outline recap is drawn from a stored entry, so it holds names, not buildings. */
+  function nameLink(n) {
+    const u = G.osmUrl(DATA.buildings.find((b) => b.n === n));
+    return u ? '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(n) + "</a>" : esc(n);
+  }
   function drawMini(b) {
     campusBase();
     let one = "";
@@ -164,7 +170,7 @@
       (isDaily ? statsHtml(right) : "") +
       '<ul class="recap">' + e.n.map((n, i) =>
         '<li><span class="mark ' + (okAt(i) ? "ok" : "no") + '" aria-hidden="true">' +
-        (okAt(i) ? "✓" : "✗") + "</span><span>" + esc(n) +
+        (okAt(i) ? "✓" : "✗") + "</span><span>" + nameLink(n) +
         (okAt(i) ? "" : " <em>— you said " + esc(e.c[i] || "nothing") + "</em>") +
         "</span></li>").join("") +
       '</ul><div class="actions"><button type="button" class="go" id="copy">Copy result</button>' +
@@ -370,7 +376,7 @@
       '<ul class="recap">' + pinGame.map((b, i) => {
         const p = G.pinPoints(pinDists[i]);
         return '<li><span class="mark ' + (p >= 50 ? "ok" : "no") + '" aria-hidden="true">' + (p >= 50 ? "✓" : "✗") +
-          "</span><span>" + esc(b.n) + '</span><span class="m">' + offText(pinDists[i]) + "</span></li>";
+          "</span><span>" + nameLink(b.n) + '</span><span class="m">' + offText(pinDists[i]) + "</span></li>";
       }).join("") +
       '</ul><div class="actions"><button type="button" class="go" id="copy">Copy result</button>' +
       '<button type="button" class="ghost" id="pinAgain">Ten more on the map</button>' +
