@@ -71,6 +71,11 @@
     }
     return miniBase;
   }
+  function osmLink(id, b) {
+    const u = G.osmUrl(b);
+    if (u) $(id).href = u; else $(id).removeAttribute("href");
+    $(id).hidden = !u;
+  }
   function drawMini(b) {
     campusBase();
     let one = "";
@@ -122,6 +127,7 @@
       (r.answer.p.length / 2) + " corners.";
     $("verdictWhere").textContent = "Where it sits on campus — every mapped building, with this one picked out.";
     drawMini(r.answer);
+    osmLink("verdictOsm", r.answer);
     $("verdict").className = "verdict on";
     $("verdict").setAttribute("aria-hidden", "false");
     $("said").textContent = (right ? "Correct. " : "Wrong. ") + "It was " + r.answer.n +
@@ -338,6 +344,7 @@
     $("pinNote").textContent = !near ? "Skipped — this is where it is." :
       m === 0 ? "Right on it. 100 points." :
       Math.round(m).toLocaleString("en-US") + " m from its walls. " + pts + (pts === 1 ? " point." : " points.");
+    osmLink("pinOsm", b);
     $("pinVerdict").className = "verdict on";
     $("pinVerdict").setAttribute("aria-hidden", "false");
     $("pinSaid").textContent = b.n + ": " + $("pinNote").textContent;

@@ -545,7 +545,15 @@
       offs.map(thenSquare).join("") + "\nhttps://matmat202.github.io/stanford-outlines/";
   }
 
+  /* The building's own page on OpenStreetMap: what it is, its address, and a map you can
+     zoom and route from. null when the data carries no way id, so the page shows no link
+     rather than a link to the wrong building. */
+  function osmUrl(b) {
+    return b && Number.isInteger(b.o) && b.o > 0 ? "https://www.openstreetmap.org/way/" + b.o : null;
+  }
+
   const api = {
+    osmUrl: osmUrl,
     rng: rng, seedFor: seedFor, campusDay: campusDay, bbox: bbox, pathFor: pathFor,
     scaleBar: scaleBar, tooSimilar: tooSimilar, distractors: distractors, family: family,
     shuffled: shuffled, pickRounds: pickRounds, score: score, shareText: shareText, shareEntry: shareEntry,

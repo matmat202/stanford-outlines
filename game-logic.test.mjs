@@ -42,6 +42,21 @@ ok("data: no Palo Alto school or church is asked or offered as a name",
 ok("data: build.py recorded what it left out", (DATA.counts.not_stanford || 0) >= 10, `${DATA.counts.not_stanford}`);
 ok("data: no playable building is a rectangle", B.filter((b) => b.q === 1 && b.p.length === 8).length === 0);
 
+// The reveal links each building to its OSM way. A link to the wrong way sends the player
+// to the wrong building with full confidence, so check every id against the extract it
+// claims to come from: the way exists, and carries this building's name.
+const RAW = require("../data/osm.raw.json").elements;
+const WAY = new Map(RAW.map((e) => [Number(e.id), e]));
+ok("data: every building carries a positive integer OSM way id",
+   B.every((b) => Number.isInteger(b.o) && b.o > 0), `${B.filter((b) => !(Number.isInteger(b.o) && b.o > 0)).length} without`);
+const badWay = B.filter((b) => !WAY.has(b.o) || (WAY.get(b.o).tags || {}).name !== b.n);
+ok("data: every OSM way id is a way in the extract with the same name", badWay.length === 0,
+   badWay.slice(0, 3).map((b) => b.n + " -> " + b.o).join(", "));
+eq("data: no two buildings share a way id", new Set(B.map((b) => b.o)).size, B.length);
+eq("osmUrl: links the way", G.osmUrl({ o: 26249523 }), "https://www.openstreetmap.org/way/26249523");
+eq("osmUrl: no id, no link", G.osmUrl({ n: "x" }), null);
+eq("osmUrl: a non-integer id is no link", G.osmUrl({ o: "26249523" }), null);
+
 /* ---- the PRNG and the seed ------------------------------------------------ */
 const r1 = G.rng(42), r2 = G.rng(42), r3 = G.rng(43);
 const take = (f) => [f(), f(), f(), f()];
