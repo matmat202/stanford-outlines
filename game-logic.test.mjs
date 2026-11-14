@@ -449,6 +449,35 @@ ok("pickRounds: still works when no building is flagged",
   eq("closeView: centred on it, y flipped", [big.x, big.y].join(), [200 - 600, 1000 - 50 - 600].join());
 }
 
+/* ---- neighbours: the close-up's grey shapes, named ---------------------------- */
+// The reveal numbers these on the close-up and lists them under it. A wrong list names a
+// building that is not where the number sits, or one the window does not show at all,
+// and on a phone it reads as fact: nothing throws.
+{
+  const sq = (n, x, y) => ({ n, p: [x - 5, y - 5, x + 5, y - 5, x + 5, y + 5, x - 5, y + 5] });
+  const me = sq("Me", 500, 500);
+  const all = [me, sq("Far", 500, 700), sq("North", 500, 570), sq("East", 590, 500), sq("288", 520, 500),
+    sq("Me", 470, 500), sq("West", 400, 500), sq("West", 440, 500), sq("Out", 900, 500)];
+  const v = G.closeView(me, 1000, 260), N = G.neighbours(me, all, v, 1000, 3);
+  eq("neighbours: nearest first, at most k", N.map((o) => o.n).join(), "West,North,East");
+  eq("neighbours: a name shared by two shapes is listed once, at the nearer", N[0].m, 60);
+  eq("neighbours: drawn in map units, y flipped", [N[1].x, N[1].y].join(), [500, 1000 - 570].join());
+  eq("neighbours: none outside the window", G.neighbours(me, all, v, 1000, 9).map((o) => o.n).join(), "West,North,East");
+  eq("neighbours: distance rounded to 10 m", G.neighbours(me, [me, sq("A", 534, 500)], v, 1000).map((o) => o.m).join(), "30");
+  const H = DATA.campus.h, play = B.filter((x) => x.q === 1);
+  let three = 0, bad = [];
+  for (const b of play) {
+    const w = G.closeView(b, H, 260), n = G.neighbours(b, B, w, H, 3);
+    if (n.length === 3) three++;
+    for (const o of n) if (o.n === b.n || !(o.x > w.x && o.x < w.x + w.s && o.y > w.y && o.y < w.y + w.s)) bad.push(b.n + ">" + o.n);
+  }
+  eq("neighbours: every listed one is a different building inside the window", bad.length, 0);
+  ok("neighbours: nearly every reveal names three", three >= play.length - 15, `${three}/${play.length}`);
+  const lathrop = B.find((x) => x.n === "Lathrop Library");
+  eq("neighbours: Lathrop Library's nearest is Memorial Hall (OSM, beside it on Memorial Way)",
+     G.neighbours(lathrop, B, G.closeView(lathrop, H, 260), H)[0].n, "Memorial Hall");
+}
+
 /* ---- areas: practise one part of campus ----------------------------------- */
 {
   const A = G.areas(B);

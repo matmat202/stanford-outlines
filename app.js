@@ -90,6 +90,7 @@
     }
     /* The close-up reuses the campus paths under a cropped viewBox: SVG clips the rest. */
     const v = G.closeView(b, DATA.campus.h, 260);
+    const near = G.neighbours(b, DATA.buildings, v, DATA.campus.h, 3);
     const bx = v.x + v.s * 0.06, by = v.y + v.s * 0.94, bw = v.bar;
     $("close").innerHTML =
       '<svg viewBox="' + [v.x, v.y, v.s, v.s].map((n) => n.toFixed(0)).join(" ") +
@@ -97,7 +98,14 @@
       '<path class="close-all" d="' + miniBase + '"/><path class="close-one" d="' + one + 'Z"/>' +
       '<g class="close-scale" style="stroke-width:' + (v.s / 160).toFixed(1) + ';font-size:' + (v.s / 14).toFixed(0) + 'px">' +
       '<line x1="' + bx.toFixed(0) + '" y1="' + by.toFixed(0) + '" x2="' + (bx + bw).toFixed(0) + '" y2="' + by.toFixed(0) + '"/>' +
-      '<text x="' + (bx + bw + v.s * 0.02).toFixed(0) + '" y="' + (by + v.s * 0.02).toFixed(0) + '">' + bw + ' m</text></g></svg>';
+      '<text x="' + (bx + bw + v.s * 0.02).toFixed(0) + '" y="' + (by + v.s * 0.02).toFixed(0) + '">' + bw + ' m</text></g>' +
+      near.map((o, i) => '<g class="close-pin" style="font-size:' + (v.s / 13).toFixed(0) + 'px"><circle cx="' + o.x.toFixed(0) +
+        '" cy="' + o.y.toFixed(0) + '" r="' + (v.s / 22).toFixed(0) + '"/><text x="' + o.x.toFixed(0) + '" y="' + o.y.toFixed(0) +
+        '" dy="0.35em">' + (i + 1) + "</text></g>").join("") + "</svg>";
+    /* Numbered on the close-up and named here, so the grey shapes around it are places. */
+    $("near").innerHTML = near.map((o, i) => '<li><span class="key" aria-hidden="true">' + (i + 1) + "</span>" +
+      nameLink(o.n) + ' <span class="near-m">' + o.m + " m away</span></li>").join("");
+    $("near").hidden = !near.length;
     $("mini").innerHTML =
       '<svg viewBox="0 0 ' + DATA.campus.w + " " + DATA.campus.h +
       '" role="img" aria-label="Where it is on campus"><path class="mini-all" d="' +
@@ -141,7 +149,7 @@
     $("verdictNote").textContent =
       Math.round(r.answer.a).toLocaleString("en-US") + " m² of footprint, " +
       (r.answer.p.length / 2) + " corners.";
-    $("verdictWhere").textContent = "Up close among its neighbours, and where it sits on campus.";
+    $("verdictWhere").textContent = "Up close, with its nearest named neighbours numbered, and where it sits on campus.";
     drawMini(r.answer);
     osmLink("verdictOsm", r.answer);
     $("verdict").className = "verdict on";

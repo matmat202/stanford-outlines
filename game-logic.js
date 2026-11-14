@@ -376,6 +376,27 @@
     return { x: cx - s / 2, y: cy - s / 2, s: s, bar: scaleBar(1, s).metres };
   }
 
+  /** The named buildings the close-up shows besides the answer, nearest first, at most k.
+   *  An unlabelled patch of grey is no help to someone learning the campus: "the one west
+   *  of Green Library" is how a building is actually recognised. Only buildings whose centre
+   *  sits inside the window count (the page numbers them on it), bare building numbers
+   *  ("288") are left out because they name nothing a player knows, and the distance is
+   *  centre to centre, rounded to 10 m. */
+  function neighbours(b, all, view, campusH, k) {
+    k = k || 3;
+    const c = centre(b), seen = {};
+    seen[b.n] = 1;
+    return all.map(function (o) {
+      const p = centre(o), y = campusH - p[1];
+      return { b: o, x: p[0], y: y, d: Math.hypot(p[0] - c[0], p[1] - c[1]) };
+    }).filter(function (o) {
+      if (seen[o.b.n] || /^[\d\s-]+$/.test(o.b.n)) return false;
+      return o.x > view.x && o.x < view.x + view.s && o.y > view.y && o.y < view.y + view.s;
+    }).sort(function (a, z) { return a.d - z.d || (a.b.n < z.b.n ? -1 : 1); })
+      .filter(function (o) { return seen[o.b.n] ? false : (seen[o.b.n] = 1); })
+      .slice(0, k).map(function (o) { return { n: o.b.n, x: o.x, y: o.y, m: Math.round(o.d / 10) * 10 }; });
+  }
+
   /** Split campus into k areas by where its playable buildings cluster (k-means on
    *  footprint centres, farthest-point start, so the same data always gives the same
    *  areas and no Math.random is involved). Every named building then joins its nearest
@@ -572,7 +593,7 @@
     shuffled: shuffled, pickRounds: pickRounds, score: score, shareText: shareText, shareEntry: shareEntry,
     KEY: KEY, entryFor: entryFor, complete: complete, rightCount: rightCount,
     parseHistory: parseHistory, record: record, resume: resume, prevDay: prevDay, stats: stats,
-    centre: centre, closeView: closeView, areas: areas, inArea: inArea, roundsFor: roundsFor,
+    centre: centre, closeView: closeView, neighbours: neighbours, areas: areas, inArea: inArea, roundsFor: roundsFor,
     FIXED_KEY: FIXED_KEY, parseFixed: parseFixed, fix: fix, misses: misses, missRounds: missRounds,
     pinPool: pinPool, pinRounds: pinRounds, inside: inside, pinNearest: pinNearest, pinDistance: pinDistance,
     pinPoints: pinPoints, pinSquare: pinSquare, pinShare: pinShare, PIN_FULL: PIN_FULL, PIN_ZERO: PIN_ZERO,
