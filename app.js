@@ -88,6 +88,16 @@
     for (let i = 0; i < b.p.length; i += 2) {
       one += (i ? "L" : "M") + b.p[i].toFixed(0) + " " + (DATA.campus.h - b.p[i + 1]).toFixed(0);
     }
+    /* The close-up reuses the campus paths under a cropped viewBox: SVG clips the rest. */
+    const v = G.closeView(b, DATA.campus.h, 260);
+    const bx = v.x + v.s * 0.06, by = v.y + v.s * 0.94, bw = v.bar;
+    $("close").innerHTML =
+      '<svg viewBox="' + [v.x, v.y, v.s, v.s].map((n) => n.toFixed(0)).join(" ") +
+      '" role="img" aria-label="Close up: this building and its neighbours, ' + bw + ' metre scale bar">' +
+      '<path class="close-all" d="' + miniBase + '"/><path class="close-one" d="' + one + 'Z"/>' +
+      '<g class="close-scale" style="stroke-width:' + (v.s / 160).toFixed(1) + ';font-size:' + (v.s / 14).toFixed(0) + 'px">' +
+      '<line x1="' + bx.toFixed(0) + '" y1="' + by.toFixed(0) + '" x2="' + (bx + bw).toFixed(0) + '" y2="' + by.toFixed(0) + '"/>' +
+      '<text x="' + (bx + bw + v.s * 0.02).toFixed(0) + '" y="' + (by + v.s * 0.02).toFixed(0) + '">' + bw + ' m</text></g></svg>';
     $("mini").innerHTML =
       '<svg viewBox="0 0 ' + DATA.campus.w + " " + DATA.campus.h +
       '" role="img" aria-label="Where it is on campus"><path class="mini-all" d="' +
@@ -131,7 +141,7 @@
     $("verdictNote").textContent =
       Math.round(r.answer.a).toLocaleString("en-US") + " m² of footprint, " +
       (r.answer.p.length / 2) + " corners.";
-    $("verdictWhere").textContent = "Where it sits on campus — every mapped building, with this one picked out.";
+    $("verdictWhere").textContent = "Up close among its neighbours, and where it sits on campus.";
     drawMini(r.answer);
     osmLink("verdictOsm", r.answer);
     $("verdict").className = "verdict on";

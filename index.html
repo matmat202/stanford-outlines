@@ -59,6 +59,11 @@ h1{font-size:24px;margin:4px 0 2px}h1 .red{color:var(--accent)}
 .verdict .where p{margin:0 0 6px}
 .verdict .where svg{display:block;width:100%;height:auto;max-height:190px}
 .mini-all{fill:var(--far)}
+.verdict .maps{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:center}
+.verdict .maps #close svg{aspect-ratio:1;max-height:none;border:1px solid var(--line);border-radius:8px}
+.close-all{fill:var(--far)}
+.close-one{fill:var(--accent)}
+.close-scale{stroke:var(--ink-2);fill:var(--ink-2)}.close-scale text{stroke:none}
 .mini-one{fill:var(--accent);stroke:var(--accent);stroke-width:46;stroke-linejoin:round;paint-order:stroke}
 .go{font:inherit;font-weight:600;padding:10px 16px;border:1px solid var(--accent);border-radius:10px;
   background:var(--accent);color:#fff;cursor:pointer}
@@ -132,7 +137,7 @@ footer a{color:var(--accent)}
     <div class="verdict" id="verdict" aria-hidden="true">
       <h2 id="verdictName"></h2>
       <p id="verdictNote"></p>
-      <div class="where"><p id="verdictWhere"></p><span id="mini"></span></div>
+      <div class="where"><p id="verdictWhere"></p><div class="maps"><span id="close"></span><span id="mini"></span></div></div>
       <p class="osm"><a id="verdictOsm" target="_blank" rel="noopener" hidden>See it on OpenStreetMap</a></p>
       <div class="actions"><button type="button" class="go" id="next">Next</button></div>
     </div>

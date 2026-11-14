@@ -363,6 +363,19 @@
     return [x / n, y / n];
   }
 
+  /** The reveal's close-up: a square window of the campus map, in the map's own SVG units
+   *  (metres, y flipped against campusH), centred on the answer. On a phone the big outline
+   *  has scrolled away by the time the name is shown, and on the whole-campus map the answer
+   *  is a dot — so the close-up is where the player sees the shape again, among its
+   *  neighbours. Three times the building's longer side, never under minSpan metres, so a
+   *  small building still shows a street's worth of context and a big one is not cropped. */
+  function closeView(b, campusH, minSpan) {
+    const bb = bbox(b.p);
+    const s = Math.max(minSpan || 260, 3 * Math.max(bb.w, bb.h));
+    const cx = (bb.x0 + bb.x1) / 2, cy = campusH - (bb.y0 + bb.y1) / 2;
+    return { x: cx - s / 2, y: cy - s / 2, s: s, bar: scaleBar(1, s).metres };
+  }
+
   /** Split campus into k areas by where its playable buildings cluster (k-means on
    *  footprint centres, farthest-point start, so the same data always gives the same
    *  areas and no Math.random is involved). Every named building then joins its nearest
@@ -559,7 +572,7 @@
     shuffled: shuffled, pickRounds: pickRounds, score: score, shareText: shareText, shareEntry: shareEntry,
     KEY: KEY, entryFor: entryFor, complete: complete, rightCount: rightCount,
     parseHistory: parseHistory, record: record, resume: resume, prevDay: prevDay, stats: stats,
-    centre: centre, areas: areas, inArea: inArea, roundsFor: roundsFor,
+    centre: centre, closeView: closeView, areas: areas, inArea: inArea, roundsFor: roundsFor,
     FIXED_KEY: FIXED_KEY, parseFixed: parseFixed, fix: fix, misses: misses, missRounds: missRounds,
     pinPool: pinPool, pinRounds: pinRounds, inside: inside, pinNearest: pinNearest, pinDistance: pinDistance,
     pinPoints: pinPoints, pinSquare: pinSquare, pinShare: pinShare, PIN_FULL: PIN_FULL, PIN_ZERO: PIN_ZERO,

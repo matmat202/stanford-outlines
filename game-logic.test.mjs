@@ -420,6 +420,35 @@ ok("pickRounds: still works when no building is flagged",
   }
 }
 
+/* ---- the reveal's close-up ------------------------------------------------ */
+// On a phone the outline has scrolled off by the time the answer is named, so the close-up
+// is where the shape is seen again. A window that misses it (the y flip dropped, the centre
+// off) shows the player some other street with nothing picked out, and nothing throws.
+{
+  const H = DATA.campus.h;
+  const flipped = (b) => { const k = G.bbox(b.p); return { x0: k.x0, x1: k.x1, y0: H - k.y1, y1: H - k.y0 }; };
+  let outside = [], tight = [], alone = 0;
+  for (const b of B.filter((x) => x.q === 1)) {
+    const v = G.closeView(b, H, 260), k = flipped(b);
+    const m = Math.min(k.x0 - v.x, v.x + v.s - k.x1, k.y0 - v.y, v.y + v.s - k.y1);
+    if (m < 0) outside.push(b.n);
+    else if (m < v.s / 4) tight.push(b.n);
+    const near = B.some((o) => o !== b && (() => { const q = flipped(o);
+      return q.x1 > v.x && q.x0 < v.x + v.s && q.y1 > v.y && q.y0 < v.y + v.s; })());
+    if (!near) alone++;
+  }
+  eq("closeView: every playable answer is drawn inside its close-up", outside.length, 0);
+  eq("closeView: with a quarter of the window to spare on every side", tight.length, 0);
+  ok("closeView: nearly every close-up shows a neighbour (it is context, not a second outline)",
+     alone <= 5, `${alone} alone`);
+  const small = G.closeView({ p: [0, 0, 10, 0, 10, 10, 0, 10] }, 100, 260);
+  eq("closeView: a small building still gets the minimum window", small.s, 260);
+  eq("closeView: its scale bar is a round number about a quarter across", small.bar, 50);
+  const big = G.closeView({ p: [0, 0, 400, 0, 400, 100, 0, 100] }, 1000, 260);
+  eq("closeView: a big one gets three times its longer side", big.s, 1200);
+  eq("closeView: centred on it, y flipped", [big.x, big.y].join(), [200 - 600, 1000 - 50 - 600].join());
+}
+
 /* ---- areas: practise one part of campus ----------------------------------- */
 {
   const A = G.areas(B);
