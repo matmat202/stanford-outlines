@@ -1,0 +1,44 @@
+:root { --paper: #f8f7fa; --ink: #16202a; --mute: #5b6670; --red: #b8322a; --blue: #1f5f8b; }
+* { box-sizing: border-box; }
+html { background: var(--paper); color: var(--ink); }
+body { margin: 0; font: 18px/1.55 system-ui, -apple-system, 'Segoe UI', sans-serif; }
+/* The plot box: the SVG fills it; % labels hang left of it, months below it. */
+#plot { position: fixed; z-index: 0; pointer-events: none; left: 42vw; right: 4vw; top: 8vh; bottom: 14vh; }
+#chart { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+#chart circle { transition: transform .8s ease, fill .5s, opacity .5s, r .8s; }
+#chart rect.band { fill: rgba(184,50,42,.1); } #chart rect.band2 { fill: rgba(31,95,139,.1); }
+#chart line.scale { stroke: var(--ink); stroke-width: 2; }
+#chart line.east { stroke: var(--blue); stroke-width: 1.5; stroke-dasharray: 5 4; }
+#chart circle.core { fill: none; stroke: var(--mute); stroke-width: 1; stroke-dasharray: 3 3; }
+#chart line.grid { stroke: #dcdde2; stroke-width: 1; }
+#chart text { font: 12px/1 ui-monospace, Menlo, monospace; }
+#chart .tick { fill: var(--mute); }
+#chart .end { text-anchor: end; } #chart .mid { text-anchor: middle; }
+#chart .ring { fill: none; stroke: var(--ink); stroke-width: 1.5; }
+#chart .lab { fill: var(--ink); font-weight: 700; paint-order: stroke; stroke: var(--paper); stroke-width: 4px; stroke-linejoin: round; }
+main { position: relative; z-index: 3; width: 34vw; margin-left: 3vw; }
+.step { min-height: 100vh; display: flex; align-items: center; }
+.step > div { background: rgba(248,247,250,.94); padding: 1.1em 1.3em; border-top: 3px solid var(--ink); }
+h1 { font: 700 clamp(34px, 4.6vw, 64px)/1.02 system-ui, sans-serif; margin: 0 0 .3em; letter-spacing: -.01em; }
+h2 { font: 700 26px/1.15 system-ui, sans-serif; margin: 0 0 .4em; }
+.kicker { font: 12px/1 ui-monospace, Menlo, monospace; letter-spacing: .14em; text-transform: uppercase; color: var(--red); margin: 0 0 1em; }
+p { margin: 0 0 .8em; }
+p:last-child { margin-bottom: 0; }
+b[data-fact] { color: var(--red); font-variant-numeric: tabular-nums; }
+.w { font-style: italic; font-weight: 700; }
+.small { font-size: 14px; color: var(--mute); }
+.k { white-space: nowrap; margin-right: .6em; }
+.k::before { content: ''; display: inline-block; width: .7em; height: .7em; border-radius: 50%; margin-right: .3em; vertical-align: -.05em; }
+.k.peak::before { background: var(--red); } .k.second::before { background: var(--blue); }
+a { color: var(--red); }
+code { font-size: .9em; }
+#err { display: none; }
+body.failed #err { display: block; position: fixed; z-index: 9; left: 44vw; top: 40vh; color: var(--red); }
+@media (max-width: 760px) {
+  body { font-size: 16px; }
+  #plot { left: 12vw; right: 5vw; top: 4vh; bottom: 62vh; }
+  main { width: auto; margin: 0 4vw; }
+  /* the card starts under the plot and its month labels, rather than rising over them */
+  .step { align-items: flex-start; padding-top: 45vh; padding-bottom: 6vh; min-height: 100vh; }
+  #chart text { font-size: 10px; }
+}

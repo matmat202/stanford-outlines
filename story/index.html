@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>One angle, half a campus · which way Stanford's buildings face</title>
+<meta name="description" content="A scrolling story from Stanford Outlines: more than half of the 309 named buildings on the Stanford campus in OpenStreetMap face the same way, to within 2 degrees, about 15 degrees clockwise from north. East of a line through the athletics, a second angle takes over.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="plot" aria-hidden="true"></div>
+<p id="err" role="alert"></p>
+<main>
+
+<section class="step" data-step="map"><div>
+  <p class="kicker">Stanford Outlines · a story</p>
+  <h1>One angle, half a campus</h1>
+  <p>Here are the <b data-fact="n"></b> named buildings on the Stanford campus in OpenStreetMap,
+  one dot each, where they stand, north up, sized by footprint.</p>
+  <p>Every building has walls, and walls point somewhere. Which way do they point?</p>
+  <p class="small">Scroll ↓</p>
+</div></section>
+
+<section class="step" data-step="angle"><div>
+  <p class="kicker">Chapter 1 · One angle</p>
+  <h2>More than half face the same way</h2>
+  <p>Fold each building's walls into one angle, how far they are turned clockwise from north,
+  and stack the buildings by it. <b data-fact="n_peak"></b> of <b data-fact="n"></b> land
+  within <b data-fact="half"></b> of <b data-fact="turn"></b>, in red.</p>
+  <p>If the buildings were turned at random, a window that narrow would hold about
+  <b data-fact="expect"></b>. This one holds <b data-fact="times"></b> times that.
+  Hoover Tower is one of them: its walls turn <b data-fact="anchor_o"></b>.</p>
+  <p class="small"><span class="k peak">the main angle</span> <span class="k second">a second angle</span></p>
+</div></section>
+
+<section class="step" data-step="quad"><div>
+  <p class="kicker">Chapter 2 · On the map</p>
+  <h2>One grid, across campus</h2>
+  <p>Back on the map, the <b data-fact="n_peak"></b> are in red. They are the Hoover buildings, the
+  engineering quad around Gates, the hospital, the dorms: <b data-fact="area_share"></b> of
+  all the mapped floor area on campus is turned to this one angle.</p>
+</div></section>
+
+<section class="step" data-step="second"><div>
+  <p class="kicker">Chapter 3 · The edge</p>
+  <h2>East of a line, the angle changes</h2>
+  <p>Away from the red, the fullest window sits <b data-fact="apart"></b> away. Its <b data-fact="n_2nd"></b>
+  buildings, in blue, are Maples Pavilion and the gyms, the maintenance shops and Palo Alto High School.</p>
+  <p>The line is <b data-fact="east"></b> east of Hoover Tower. <span class="w">Not one</span> red
+  building stands east of it. <b data-fact="east_2nd"></b> of the blue ones do.</p>
+</div></section>
+
+<section class="step" data-step="outer"><div>
+  <p class="kicker">Chapter 4 · Could it be one cluster?</p>
+  <h2>Not just neighbours copying neighbours</h2>
+  <p>Buildings next to each other are often built together, so one dense core could make the
+  peak alone. Drop every building within <b data-fact="core"></b> of Hoover Tower. Of the
+  <b data-fact="outer_n"></b> left, <b data-fact="outer_peak"></b> still face the same way,
+  where chance would put about <b data-fact="outer_expect"></b>.</p>
+</div></section>
+
+<section class="step" data-step="quad"><div>
+  <p class="kicker">Coda · Your turn</p>
+  <h2>Name it from its outline</h2>
+  <p>Orientation is a real clue. <a href="../">Stanford Outlines</a> draws one building's
+  footprint a round, north up, to scale, and asks which it is. Ten a day.</p>
+  <p class="small">Data: OpenStreetMap contributors (ODbL), named buildings on campus via Overpass.
+  A building's facing is the length-weighted average direction of its walls, folded into
+  0–90°. Windows are ±2°, slid in half-degree steps. The build and its checks are in the
+  <a href="https://github.com/matmat202/stanford-outlines">repository</a>.</p>
+</div></section>
+
+</main>
+<script type="module" src="story.js"></script>
+</body>
+</html>
