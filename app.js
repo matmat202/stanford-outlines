@@ -82,6 +82,15 @@
     const u = G.osmUrl(DATA.buildings.find((b) => b.n === n));
     return u ? '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(n) + "</a>" : esc(n);
   }
+  /* A recap row's outline, small and north up, so the end screen shows the shapes the day
+     asked about and not only their names. Each is fitted to its own box, not to one scale. */
+  const THUMB = 34;
+  function thumb(n) {
+    const b = DATA.buildings.find((x) => x.n === n);
+    if (!b) return '<span class="thumb" aria-hidden="true"></span>';
+    return '<svg class="thumb" viewBox="0 0 ' + THUMB + " " + THUMB + '" aria-hidden="true">' +
+      '<path d="' + G.pathFor(b.p, THUMB, THUMB, 2).d + '"/></svg>';
+  }
   function drawMini(b) {
     campusBase();
     let one = "";
@@ -188,7 +197,7 @@
       (isDaily ? statsHtml(right) : "") +
       '<ul class="recap">' + e.n.map((n, i) =>
         '<li><span class="mark ' + (okAt(i) ? "ok" : "no") + '" aria-hidden="true">' +
-        (okAt(i) ? "✓" : "✗") + "</span><span>" + nameLink(n) +
+        (okAt(i) ? "✓" : "✗") + "</span>" + thumb(n) + "<span>" + nameLink(n) +
         (okAt(i) ? "" : " <em>— you said " + esc(e.c[i] || "nothing") + "</em>") +
         "</span></li>").join("") +
       '</ul><div class="actions"><button type="button" class="go" id="copy">Copy result</button>' +
