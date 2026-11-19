@@ -56,6 +56,9 @@ eq("data: no two buildings share a way id", new Set(B.map((b) => b.o)).size, B.l
 eq("osmUrl: links the way", G.osmUrl({ o: 26249523 }), "https://www.openstreetmap.org/way/26249523");
 eq("osmUrl: no id, no link", G.osmUrl({ n: "x" }), null);
 eq("osmUrl: a non-integer id is no link", G.osmUrl({ o: "26249523" }), null);
+// way 0 is not a way: OSM numbers from 1, so a 0 in the data is a missing id, not an id.
+eq("osmUrl: way id 0 is a missing id, not a link", G.osmUrl({ o: 0 }), null);
+eq("osmUrl: the lowest real way id still links", G.osmUrl({ o: 1 }), "https://www.openstreetmap.org/way/1");
 
 /* ---- the PRNG and the seed ------------------------------------------------ */
 const r1 = G.rng(42), r2 = G.rng(42), r3 = G.rng(43);
@@ -139,6 +142,13 @@ const R = G.pickRounds(B, seed, 10);
 const R2 = G.pickRounds(B, seed, 10);
 const R3 = G.pickRounds(B, G.seedFor("2026-10-27"), 10);
 eq("pickRounds: ten rounds", R.length, 10);
+// Both defaults, which no other call in this file exercises: every pickRounds call here
+// passes n and none passes `choices`, so `n = n || 10` and `choices = choices || 4` were
+// invisible. The choices one needs a caller that PASSES a different count -- omitting it
+// cannot tell, because roundsFor re-defaults with its own `(choices || 4)`.
+eq("pickRounds: n defaults to ten when the caller omits it", G.pickRounds(B, seed).length, 10);
+eq("pickRounds: a caller asking for six names per round gets six",
+   [...new Set(G.pickRounds(B, seed, 10, 6).map((r) => r.choices.length))].join(), "6");
 ok("pickRounds: the same day is the same puzzle",
    JSON.stringify(R.map((r) => [r.answer.n, r.choices])) ===
    JSON.stringify(R2.map((r) => [r.answer.n, r.choices])));
@@ -442,6 +452,10 @@ ok("pickRounds: still works when no building is flagged",
   ok("closeView: nearly every close-up shows a neighbour (it is context, not a second outline)",
      alone <= 5, `${alone} alone`);
   const small = G.closeView({ p: [0, 0, 10, 0, 10, 10, 0, 10] }, 100, 260);
+  // The page calls closeView without a minSpan on the whole-campus view; the default is
+  // the floor the comment promises, not whatever Math.max does with undefined.
+  eq("closeView: minSpan defaults to 260 when the caller omits it",
+     G.closeView({ p: [0, 0, 10, 0, 10, 10, 0, 10] }, 100).s, 260);
   eq("closeView: a small building still gets the minimum window", small.s, 260);
   eq("closeView: its scale bar is a round number about a quarter across", small.bar, 50);
   const big = G.closeView({ p: [0, 0, 400, 0, 400, 100, 0, 100] }, 1000, 260);
@@ -476,6 +490,41 @@ ok("pickRounds: still works when no building is flagged",
   const lathrop = B.find((x) => x.n === "Lathrop Library");
   eq("neighbours: Lathrop Library's nearest is Memorial Hall (OSM, beside it on Memorial Way)",
      G.neighbours(lathrop, B, G.closeView(lathrop, H, 260), H)[0].n, "Memorial Hall");
+}
+
+// The window is half-open on every side: a building whose centre lands exactly on an edge
+// is NOT in it, because the close-up is clipped there and the number would sit on the rim
+// with nothing under it. All four comparisons are separate, so all four are checked.
+{
+  const sq = (n, x, y) => ({ n, p: [x - 5, y - 5, x + 5, y - 5, x + 5, y + 5, x - 5, y + 5] });
+  const me = sq("Me", 500, 500);
+  const v = G.closeView(me, 1000, 260);           // x 370..630, y 370..630 in flipped units
+  eq("neighbours: the window's own corner coordinates", [v.x, v.y, v.s].join(), "370,370,260");
+  // y is flipped (campusH - centre-y), so the raw y of a south-edge shape is 630, not 370.
+  const edges = [me, sq("WestEdge", 370, 500), sq("EastEdge", 630, 500),
+    sq("SouthEdge", 500, 630), sq("NorthEdge", 500, 370)];
+  eq("neighbours: a centre exactly on an edge is outside the window",
+     G.neighbours(me, edges, v, 1000, 9).map((o) => o.n).join(), "");
+  // ... and one step inside each edge is in it, so the check above is not vacuous.
+  const inside = [me, sq("WestIn", 371, 500), sq("EastIn", 629, 500),
+    sq("SouthIn", 500, 629), sq("NorthIn", 500, 371)];
+  eq("neighbours: one metre inside each edge is in the window",
+     G.neighbours(me, inside, v, 1000, 9).map((o) => o.n).sort().join(),
+     "EastIn,NorthIn,SouthIn,WestIn");
+  // Two shapes under one name, exactly equidistant: the dedup keeps the first the caller
+  // gave. Nothing above picks between them -- the tie-break compares names, and these are
+  // the same name -- so this pins which one the list shows, in both input orders.
+  const twins = [me, sq("Twin", 440, 500), sq("Twin", 560, 500)];
+  eq("neighbours: two equidistant shapes under one name keep input order",
+     G.neighbours(me, twins, v, 1000).map((o) => o.x).join(), "440");
+  eq("neighbours: ... and the other way round, so it is order, not position",
+     G.neighbours(me, [me, sq("Twin", 560, 500), sq("Twin", 440, 500)], v, 1000)
+       .map((o) => o.x).join(), "560");
+
+  // k defaults to 3: the reveal has room for three names under the close-up.
+  const five = [me, sq("K1", 510, 500), sq("K2", 520, 500), sq("K3", 530, 500), sq("K4", 540, 500)];
+  eq("neighbours: k defaults to three when the caller omits it",
+     G.neighbours(me, five, v, 1000).map((o) => o.n).join(), "K1,K2,K3");
 }
 
 /* ---- areas: practise one part of campus ----------------------------------- */
@@ -701,6 +750,7 @@ ok("pickRounds: still works when no building is flagged",
   for (let y = 1885; y < 2000; y += 3) for (let k = 0; k < 3; k++) fake.push({ y: y, f: "F" + y + "_" + k });
   const R = G.thenRounds(fake, 7, 10);
   eq("thenRounds: ten rounds", R.length, 10);
+  eq("thenRounds: n defaults to ten when the caller omits it", G.thenRounds(fake, 7).length, 10);
   ok("thenRounds: no file twice", new Set(R.map((p) => p.f)).size === 10);
   let crowded = 0;
   for (let s = 0; s < 300; s++) {
