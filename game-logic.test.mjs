@@ -784,6 +784,141 @@ ok("pickRounds: still works when no building is flagged",
   eq("then data: 200 seeds all make a full ten under the two-per-decade rule", short, 0);
 }
 
+/* ---- survivors the sweep showed DIFFER (2026-11-19) -------------------------
+ * 49 mutants were accepted as equivalent when this module was first pinned, and the
+ * equiv sweep says each one changes what a player is shown. Most hid behind fixtures
+ * that cannot tell x from y: the pin square and L were symmetric about x = y and sat at
+ * the origin, so p[i+1] -> p[i-1] or `- x0` -> `+ x0` changed nothing a check could see;
+ * the pathFor box was always wide, so the height term never bound. Everything below is
+ * off the origin and lopsided on purpose, and its numbers are worked by hand. */
+{
+  const near = (a, b) => Math.abs(a - b) < 1e-9;
+  const same = (p, q) => p.length === q.length && p.every((v, i) => near(v, q[i]));
+  // An L whose arms differ: x 10..90 by y 20..40 along the bottom, x 10..40 up to y 70.
+  const L = { n: "Lopsided", p: [10, 20, 90, 20, 90, 40, 40, 40, 40, 70, 10, 70] };
+  for (const [pt, want, why] of [
+    [[80, 30], [80, 30, 0], "inside the long arm is its own nearest point"],
+    [[20, 60], [20, 60, 0], "inside the tall arm"],
+    [[70, 60], [70, 40, 20], "in the notch, to the arm's top wall, not the tall arm's side (30)"],
+    [[50, 10], [50, 20, 10], "below, straight up to the south wall"],
+    [[25, 80], [25, 70, 10], "above the tall arm"],
+    [[0, 35], [10, 35, 10], "west, to the closing edge (last vertex back to the first)"],
+    [[95, 45], [90, 40, Math.SQRT2 * 5], "past a corner, to the corner"],
+  ]) {
+    const got = G.pinNearest(pt, L);
+    ok(`pinNearest: ${JSON.stringify(pt)} — ${why}`, same(got, want), JSON.stringify(got));
+  }
+  // Level with a vertex: the ray runs along a wall and through a corner, the case the
+  // half-open (yi > y) !== (yj > y) test exists for. Taps are floats, but a building's
+  // corners are where a player aims.
+  ok("inside: a point level with a corner, inside, is inside", G.inside([20, 40], L.p));
+  ok("inside: level with a corner, west of the building, is outside", !G.inside([5, 40], L.p));
+  ok("inside: level with a corner, east of it, is outside", !G.inside([95, 40], L.p));
+  ok("inside: level with the tall arm's top, inside it, is inside", G.inside([20, 69.5], L.p));
+  // A slanted wall, so the distance is not along an axis: the hypotenuse x + 2y = 60,
+  // shifted to (100, 50). From (130, 80) the foot is (124, 68), 30/sqrt(5) away.
+  const T = { n: "Wedge", p: [100, 50, 160, 50, 100, 80] };
+  ok("pinNearest: to a slanted wall, at its foot",
+     same(G.pinNearest([130, 80], T), [124, 68, 30 / Math.sqrt(5)]), JSON.stringify(G.pinNearest([130, 80], T)));
+  ok("inside: just under the slanted wall (y 70 at x 120) is inside", G.inside([120, 69], T.p));
+  ok("inside: just over it is not", !G.inside([120, 71], T.p));
+
+  // bbox over a ring whose LAST vertex holds the extreme y.
+  const tri = G.bbox([0, 0, 10, 0, 5, 8]);
+  eq("bbox: the last vertex counts for height", tri.h, 8);
+  eq("bbox: the last vertex counts for the top", tri.y1, 8);
+
+  // pathFor, exact. Tall in a wide box, so the HEIGHT bounds the scale: s = 80/10 = 8,
+  // the 32-wide drawing is centred at x 84..116, and y runs 90 (south) up to 10 (north).
+  const tall = G.pathFor([100, 200, 104, 200, 104, 210, 100, 210], 200, 100, 10);
+  eq("pathFor: a tall shape is bounded by the height", tall.scale, 8);
+  eq("pathFor: off-origin, tall, exact path", tall.d, "M84.0 90.0L116.0 90.0L116.0 10.0L84.0 10.0Z");
+  eq("pathFor: a wide shape is bounded by the width (180/10, not 80/4)", fit.scale, 18);
+
+  // tooSimilar: aspect is a ratio, so a footprint and its double are one shape; and
+  // same verts, area and fill with a different aspect are NOT twins.
+  const rect = (w, h, a) => ({ n: `${w}x${h}`, a: a, f: 0.5, p: [0, 0, w, 0, w, h, 0, h] });
+  ok("tooSimilar: a footprint and the same footprint scaled are one shape",
+     G.tooSimilar(rect(10, 20, 1000), rect(20, 40, 1000)));
+  ok("tooSimilar: same area and fill, 10:1 vs square, are different shapes",
+     !G.tooSimilar(rect(10, 100, 1000), rect(32, 32, 1000)));
+
+  // The daily is the same puzzle for everyone only while the stream is the same stream;
+  // change rng and every stored day stops resuming (resume() compares answer names).
+  const r = G.rng(20261026);
+  eq("rng: the stream is pinned (a change re-deals every stored day)",
+     JSON.stringify([r(), r(), r()]), "[0.805018633371219,0.11630934686399996,0.8520807938184589]");
+
+  // Every bar length is reachable: a drawing exactly four bars wide picks that bar.
+  for (const m of [5, 10, 20, 25, 50, 100, 200, 500]) eq(`scaleBar: ${m} m is offered`, G.scaleBar(1, 4 * m).metres, m);
+
+  // The pin bands in metres, as the page's help states them, not relative to the constants.
+  eq("pinSquare: 26 m is close, not on it", G.pinSquare(26), "\u{1F7E8}");
+  eq("pinSquare: 501 m is off the map", G.pinSquare(501), "\u{2B1C}");
+
+  // An area is named after its biggest notable building; with none, its biggest playable one.
+  const A = G.areas(B);
+  A.list.forEach((a, i) => {
+    const mine = B.filter((b) => A.of[b.n] === i);
+    const big = (xs) => xs.slice().sort((x, y) => y.a - x.a || (x.n < y.n ? -1 : 1))[0];
+    const want = big(mine.filter((b) => b.w === 1)) || big(mine.filter((b) => b.q === 1));
+    eq(`areas[${i}]: named after its biggest notable building`, a.near, want.n);
+  });
+  ok("areas: the control — some area's biggest notable is not its alphabetical first",
+     A.list.some((a, i) => {
+       const m = B.filter((b) => A.of[b.n] === i && b.w === 1).map((b) => b.n).sort();
+       return m.length > 1 && m[0] !== a.near;
+     }));
+  eq("bbox: the FIRST vertex counts for the bottom", G.bbox([0, 0, 10, 5, 5, 8]).y0, 0);
+
+  // k-means, converged: every area's centre is the mean of its playable buildings, and
+  // every playable building is nearer its own area's centre than any other. A split that
+  // stopped early, skipped an area's update or seeded a sum at 1 breaks one of the two.
+  {
+    const play = B.filter((b) => b.q === 1);
+    const off = [];
+    A.list.forEach((a, r) => {
+      const m = play.filter((b) => A.of[b.n] === r).map(G.centre);
+      const mx = m.reduce((s, p) => s + p[0], 0) / m.length, my = m.reduce((s, p) => s + p[1], 0) / m.length;
+      if (!(Math.abs(mx - a.centre[0]) < 1e-6 && Math.abs(my - a.centre[1]) < 1e-6)) off.push(`centre ${r}`);
+    });
+    play.forEach((b) => {
+      const c = G.centre(b), d = A.list.map((a) => Math.hypot(c[0] - a.centre[0], c[1] - a.centre[1]));
+      if (d[A.of[b.n]] > Math.min.apply(null, d) + 1e-9) off.push(b.n);
+    });
+    eq("areas: converged — centres are means, buildings sit in their nearest area", off.join("; "), "");
+  }
+  // The seed is the WEST-most building, then the farthest from it. Worked by hand: start
+  // at (205,405), farthest is (905,405); one step gives {(405,105),(205,405)} against the
+  // other three, and that is stable. Seeding from the south-most instead splits it 1+4.
+  {
+    const sq5 = (n, x, y) => ({ n, a: 900, f: 0.5, q: 1, w: 0, p: [x, y, x + 10, y, x + 10, y + 10, x, y + 10] });
+    const toy = [[400, 100], [200, 400], [900, 400], [600, 300], [600, 600]].map(([x, y], i) => sq5(`t${i}`, x, y));
+    const T = G.areas(toy, 2);
+    eq("areas: k-means is seeded from the west-most building", toy.map((b) => T.of[b.n]).join(""), "00111");
+  }
+  ok("areas: the control — some area has no notable building, so the fallback runs",
+     A.list.some((a, i) => !B.some((b) => A.of[b.n] === i && b.w === 1)));
+
+  // Two per decade is the cap, not one: five decades of three photos still make a ten.
+  const five = [];
+  for (const y of [1900, 1910, 1920, 1930, 1940]) for (let k = 0; k < 3; k++) five.push({ y: y + k, f: `D${y}_${k}` });
+  let shortGames = 0;
+  for (let s = 0; s < 50; s++) if (G.thenRounds(five, s, 10).length !== 10) shortGames++;
+  eq("thenRounds: five decades make a full ten (two each)", shortGames, 0);
+  ok("thenShare: an unplayed round scores nothing", /— 100\/200\n/.test(G.thenShare([0, undefined], "x")),
+     JSON.stringify(G.thenShare([0, undefined], "x")));
+
+  // Same-day misses in any storage order come back in name order.
+  const P = B.filter((b) => b.q === 1).map((b) => b.n).slice().sort();
+  const want = P.slice(0, 4).join("|");
+  for (const order of [[1, 3, 0, 2], [2, 0, 3, 1], [0, 2, 1, 3], [3, 1, 2, 0]]) {
+    const n = order.map((k) => P[k]);
+    eq(`misses: same-day ties in name order from storage ${order.join("")}`,
+       G.misses({ days: { "2026-10-20": { n: n, c: n.map(() => "Not A Building") } } }, {}, B).map((b) => b.n).join("|"), want);
+  }
+}
+
 if (fails.length) {
   console.error(fails.map((f) => "FAIL: " + f).join("\n"));
   console.error(`${pass} passed, ${fails.length} FAILED`);
