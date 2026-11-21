@@ -121,6 +121,14 @@ h1{font-size:24px;margin:4px 0 2px}h1 .red{color:var(--accent)}
 .step:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .credit{font-size:12px;color:var(--ink-2);margin:8px 0 0;line-height:1.45}
 .credit a{color:var(--accent)}
+.vs{margin-top:10px}.vs[hidden]{display:none}
+.vs .pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.vs figure{margin:0;text-align:center}.vs svg{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:8px}
+.vs figcaption{font-size:12px;color:var(--ink-2);margin-top:3px;line-height:1.3}.vs figcaption b{color:var(--ink);font-weight:600}
+.vs-pick{fill:var(--fill);stroke:var(--wrong);stroke-width:1.6;stroke-dasharray:4 3;stroke-linejoin:round}
+.vs-ans{fill:var(--fill);stroke:var(--accent);stroke-width:1.6;stroke-linejoin:round}
+.vs-scale{stroke:var(--ink-2);fill:var(--ink-2);font-size:10px}.vs-scale text{stroke:none}
+.verdict .near a{color:inherit;text-decoration-color:var(--line);text-underline-offset:2px}
 .verdict .osm{margin:8px 0 0}.osm a{color:var(--accent)}.osm a[hidden]{display:none}
 footer{color:var(--ink-2);font-size:12px;margin:22px 0 8px;line-height:1.55}
 footer a{color:var(--accent)}
@@ -142,6 +150,7 @@ footer a{color:var(--accent)}
     <div class="verdict" id="verdict" aria-hidden="true">
       <h2 id="verdictName"></h2>
       <p id="verdictNote"></p>
+      <div class="vs" id="vs" hidden></div>
       <div class="where"><p id="verdictWhere"></p><div class="maps"><span id="close"></span><span id="mini"></span></div><ol id="near" class="near" aria-label="Its nearest named neighbours, numbered on the close-up" hidden></ol></div>
       <p class="osm"><a id="verdictOsm" target="_blank" rel="noopener" hidden>See it on OpenStreetMap</a></p>
       <div class="actions"><button type="button" class="go" id="next">Next</button></div>

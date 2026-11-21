@@ -919,6 +919,48 @@ ok("pickRounds: still works when no building is flagged",
   }
 }
 
+/* ---- pairFor: a miss drawn beside its answer, at one scale ----------------------------
+ * The whole point is the shared scale: fitted separately, a shed and a library come out the
+ * same size and the comparison says nothing about the clue the scale bar exists to give. */
+{
+  const xs = (d) => d.slice(1, -1).split("L").map((q) => q.split(" ").map(Number));
+  const span = (d) => { const p = xs(d), X = p.map((q) => q[0]), Y = p.map((q) => q[1]);
+    return { x0: Math.min(...X), x1: Math.max(...X), y0: Math.min(...Y), y1: Math.max(...Y) }; };
+  // 10x4 m beside 5x2 m in 100x100 boxes, pad 10: the big one binds, s = 80/10 = 8.
+  const big = { p: [0, 0, 10, 0, 10, 4, 0, 4] }, small = { p: [50, 50, 55, 50, 55, 52, 50, 52] };
+  const pr = G.pairFor(small, big, 100, 100, 10);
+  eq("pairFor: the larger building sets the one scale", pr.scale, 8);
+  eq("pairFor: argument order does not change the scale", G.pairFor(big, small, 100, 100, 10).scale, 8);
+  const sb = span(pr.b), sa = span(pr.a);
+  eq("pairFor: the larger fills its box to the padding (x0)", sb.x0, 10);
+  eq("pairFor: the larger fills its box to the padding (x1)", sb.x1, 90);
+  eq("pairFor: the smaller is drawn at the same px per metre, not stretched (width)", sa.x1 - sa.x0, 40);
+  eq("pairFor: the smaller is centred in its own box (x0)", sa.x0, 30);
+  eq("pairFor: the smaller is centred in its own box (y0)", sa.y0, 42);
+  eq("pairFor: north is up in the pair too (y flipped)", xs(pr.a)[2][1] < xs(pr.a)[0][1], true);
+  eq("pairFor: scale bar is scaleBar at the shared scale", pr.bar.metres, G.scaleBar(8, 100).metres);
+  // Wide beside tall in a wide box: each binds on a different side, and the shared scale is
+  // the smaller of the two own-fits (tall: 80/10 = 8), not either building's own fit.
+  const wide = { p: [0, 0, 10, 0, 10, 2, 0, 2] }, tall = { p: [0, 0, 2, 0, 2, 10, 0, 10] };
+  const wt = G.pairFor(wide, tall, 200, 100, 10);
+  eq("pairFor: wide vs tall takes the tighter of the two fits", wt.scale, 8);
+  eq("pairFor: wide vs tall draws the wide one 80 px wide, not its own-fit 180", span(wt.a).x1 - span(wt.a).x0, 80);
+  // Real data, every pairing of a real game's answers with their offered names: drawn widths
+  // keep the metre ratio, and both stay inside their boxes.
+  const g = G.pickRounds(B, 20261121, 10, 4, 4);
+  let bad = [];
+  for (const r of g) for (const n of r.choices) {
+    if (n === r.answer.n) continue;
+    const pick = B.find((b) => b.n === n), q = G.pairFor(pick, r.answer, 150, 150, 6);
+    const A = span(q.a), Z = span(q.b), ma = G.bbox(pick.p), mz = G.bbox(r.answer.p);
+    const okRatio = Math.abs((A.x1 - A.x0) / (Z.x1 - Z.x0) - ma.w / mz.w) < 0.02;
+    const inBox = [A, Z].every((S) => S.x0 >= 5.9 && S.x1 <= 144.1 && S.y0 >= 5.9 && S.y1 <= 144.1);
+    if (!okRatio || !inBox) bad.push(n + " vs " + r.answer.n);
+  }
+  ok("pairFor: on a real game every wrong name and its answer keep their true size ratio, inside the box",
+     bad.length === 0, bad.slice(0, 3).join(", "));
+}
+
 if (fails.length) {
   console.error(fails.map((f) => "FAIL: " + f).join("\n"));
   console.error(`${pass} passed, ${fails.length} FAILED`);

@@ -71,6 +71,26 @@
     return { d: d + "Z", scale: s, box: b };
   }
 
+  /** A miss, drawn side by side: the building the player picked and the answer, each
+   *  centred in its own boxW x boxH box but at ONE scale, the larger of the two setting it.
+   *  Fitting each to its own box would draw a 600 m2 shed as big as Green Library, and size
+   *  is half of what the player confused. Returns both paths, the shared px-per-metre and a
+   *  scale bar for it. */
+  function pairFor(a, b, boxW, boxH, pad) {
+    pad = pad == null ? 6 : pad;
+    const s = Math.min(pathFor(a.p, boxW, boxH, pad).scale, pathFor(b.p, boxW, boxH, pad).scale);
+    const one = function (p) {
+      const bb = bbox(p), ox = (boxW - bb.w * s) / 2, oy = (boxH - bb.h * s) / 2;
+      let d = "";
+      for (let i = 0; i < p.length; i += 2) {
+        d += (i ? "L" : "M") + (ox + (p[i] - bb.x0) * s).toFixed(1) + " " +
+          (boxH - oy - (p[i + 1] - bb.y0) * s).toFixed(1);
+      }
+      return d + "Z";
+    };
+    return { a: one(a.p), b: one(b.p), scale: s, bar: scaleBar(s, boxW) };
+  }
+
   const BARS = [5, 10, 20, 25, 50, 100, 200, 500];
 
   /** A scale bar is the difference between "an L-shaped thing" and "a 90 m L-shaped
@@ -588,7 +608,7 @@
 
   const api = {
     osmUrl: osmUrl,
-    rng: rng, seedFor: seedFor, campusDay: campusDay, bbox: bbox, pathFor: pathFor,
+    rng: rng, seedFor: seedFor, campusDay: campusDay, bbox: bbox, pathFor: pathFor, pairFor: pairFor,
     scaleBar: scaleBar, tooSimilar: tooSimilar, distractors: distractors, family: family,
     shuffled: shuffled, pickRounds: pickRounds, score: score, shareText: shareText, shareEntry: shareEntry,
     KEY: KEY, entryFor: entryFor, complete: complete, rightCount: rightCount,

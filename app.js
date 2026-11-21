@@ -91,6 +91,29 @@
     return '<svg class="thumb" viewBox="0 0 ' + THUMB + " " + THUMB + '" aria-hidden="true">' +
       '<path d="' + G.pathFor(b.p, THUMB, THUMB, 2).d + '"/></svg>';
   }
+  /* On a miss: the building the player picked beside the answer, at one scale, so the two
+     shapes they confused are seen together and the size difference is real. */
+  const VS_W = 150, VS_H = 120;
+  function drawVs(answer, pickedName) {
+    const pick = pickedName && DATA.buildings.find((x) => x.n === pickedName);
+    if (!pick || pick.n === answer.n) { $("vs").innerHTML = ""; $("vs").hidden = true; return; }
+    const pr = G.pairFor(pick, answer, VS_W, VS_H, 8);
+    const ca = G.centre(pick), cb = G.centre(answer);
+    const apart = Math.round(Math.hypot(ca[0] - cb[0], ca[1] - cb[1]) / 10) * 10;
+    const y = VS_H - 7;
+    const fig = (d, cls, cap, scale) => '<figure><svg viewBox="0 0 ' + VS_W + " " + VS_H + '" role="img" aria-label="' +
+      esc(cap.replace(/<[^>]+>/g, "")) + ', footprint drawn to the same scale as its neighbour"><path class="' + cls + '" d="' + d + '"/>' +
+      (scale ? '<g class="vs-scale"><line x1="8" y1="' + y + '" x2="' + (8 + pr.bar.px).toFixed(1) + '" y2="' + y + '"/>' +
+        '<text x="' + (12 + pr.bar.px).toFixed(1) + '" y="' + (y + 3) + '">' + pr.bar.metres + " m</text></g>" : "") +
+      "</svg><figcaption>" + cap + "</figcaption></figure>";
+    $("vs").innerHTML = "<p>What you picked, beside the answer, at one scale" +
+      (apart >= 10 ? " — they stand " + apart.toLocaleString("en-US") + " m apart" : "") + ".</p>" +
+      '<div class="pair">' +
+      fig(pr.a, "vs-pick", "You said <b>" + esc(pick.n) + "</b><br>" + Math.round(pick.a).toLocaleString("en-US") + " m²", true) +
+      fig(pr.b, "vs-ans", "It was <b>" + esc(answer.n) + "</b><br>" + Math.round(answer.a).toLocaleString("en-US") + " m²", false) +
+      "</div>";
+    $("vs").hidden = false;
+  }
   function drawMini(b) {
     campusBase();
     let one = "";
@@ -160,6 +183,7 @@
       (r.answer.p.length / 2) + " corners.";
     $("verdictWhere").textContent = "Up close, with its nearest named neighbours numbered, and where it sits on campus.";
     drawMini(r.answer);
+    drawVs(r.answer, right ? null : r.choices[i]);
     osmLink("verdictOsm", r.answer);
     $("verdict").className = "verdict on";
     $("verdict").setAttribute("aria-hidden", "false");
