@@ -939,6 +939,22 @@ ok("pickRounds: still works when no building is flagged",
   eq("pairFor: the smaller is centred in its own box (y0)", sa.y0, 42);
   eq("pairFor: north is up in the pair too (y flipped)", xs(pr.a)[2][1] < xs(pr.a)[0][1], true);
   eq("pairFor: scale bar is scaleBar at the shared scale", pr.bar.metres, G.scaleBar(8, 100).metres);
+  // Exact paths, like the pathFor case above. Without a string-exact check the
+  // coordinate `toFixed(1)` is invisible: every assertion here parses with Number(),
+  // and Number("30.00") === 30, so toFixed(2) passes them all. mutwatch caught both
+  // toFixed mutants surviving on 2026-11-21; these two lines are what kill them.
+  eq("pairFor: exact path for the smaller building", pr.a,
+     "M30.0 58.0L70.0 58.0L70.0 42.0L30.0 42.0Z");
+  eq("pairFor: exact path for the larger building", pr.b,
+     "M10.0 66.0L90.0 66.0L90.0 34.0L10.0 34.0Z");
+  // The pad defaults to 6. Every check above passes one explicitly, so the default was
+  // never executed and `pad == null ? 6 : pad` could have said any number.
+  eq("pairFor: pad defaults to 6", G.pairFor(small, big, 100, 100).scale,
+     G.pairFor(small, big, 100, 100, 6).scale);
+  eq("pairFor: and that default is 6 exactly, not merely some default",
+     G.pairFor(small, big, 100, 100).scale, 8.8);
+  eq("pairFor: pad 7 would give a different scale, so the default is observed",
+     G.pairFor(small, big, 100, 100, 7).scale, 8.6);
   // Wide beside tall in a wide box: each binds on a different side, and the shared scale is
   // the smaller of the two own-fits (tall: 80/10 = 8), not either building's own fit.
   const wide = { p: [0, 0, 10, 0, 10, 2, 0, 2] }, tall = { p: [0, 0, 2, 0, 2, 10, 0, 10] };
@@ -959,6 +975,56 @@ ok("pickRounds: still works when no building is flagged",
   }
   ok("pairFor: on a real game every wrong name and its answer keep their true size ratio, inside the box",
      bad.length === 0, bad.slice(0, 3).join(", "));
+}
+
+/* ---- survivors the sweep could not judge until 2026-11-21 -------------------
+ * Six mutants sat ACCEPTED as "measured equivalent" only because the equivalence sweep
+ * never reached the lines (bin/mutwatch blind said 21 of 57 public names were unswept).
+ * Widening the sweep re-scored all six as DIFFERS — real changes nothing here caught.
+ * projects/mutation-audit/NOTES.md has the measurement.
+ */
+{
+  // scaleBar picks the bar NEAREST a quarter of the drawing, and on an exact tie the
+  // SHORTER one — `<` not `<=`, because a tie should not silently grow the bar. The
+  // existing checks all land on an exact match, so neither comparator could fail them.
+  eq("scaleBar: a tie between 5 m and 10 m takes the shorter bar", G.scaleBar(1, 30).metres, 5);
+  eq("scaleBar: a tie between 10 m and 20 m takes the shorter bar", G.scaleBar(1, 60).metres, 10);
+  eq("scaleBar: a tie between 25 m and 50 m takes the shorter bar", G.scaleBar(1, 150).metres, 25);
+
+  // inside() is half-open: a point exactly on the left or bottom edge counts as in, on the
+  // right or top edge as out. That is what stops a tap on the shared wall of two adjacent
+  // buildings scoring as inside both. `<` -> `<=` flips it, and no test looked at an edge.
+  const sq = [0, 0, 10, 0, 10, 10, 0, 10];
+  eq("inside: a point on the left edge is in", G.inside([0, 5], sq), true);
+  eq("inside: a point on the right edge is out", G.inside([10, 5], sq), false);
+  eq("inside: a point on the bottom edge is in", G.inside([5, 0], sq), true);
+  eq("inside: a point on the top edge is out", G.inside([5, 10], sq), false);
+  eq("inside: the middle is in", G.inside([5, 5], sq), true);
+  eq("inside: a point beyond the left edge is out", G.inside([-1, 5], sq), false);
+
+  // MIN_VERTS / MAX_FILL / MIN_AREA are published here but APPLIED in build.py, which is
+  // what actually sets each building's `q`. Recomputing the rule from the published numbers
+  // is the drift check: if build.py's thresholds move and these do not, a building's q stops
+  // matching and this goes red. Measured 2026-11-21: 0 mismatches over 294 buildings, and
+  // MIN_VERTS 8->9 produces 7, MAX_FILL 0.92->0.93 produces 2.
+  const wrong = B.filter((b) => {
+    const want = (b.p.length / 2 >= G.MIN_VERTS && b.f < G.MAX_FILL && b.a >= G.MIN_AREA) ? 1 : 0;
+    return want !== b.q;
+  });
+  ok("data: every building's q is exactly what the published thresholds say it should be",
+     wrong.length === 0, wrong.slice(0, 3).map((b) => b.n).join(", "));
+  ok("the vertex floor is load-bearing: some building is excluded by it alone",
+     B.some((b) => b.p.length / 2 < G.MIN_VERTS && b.f < G.MAX_FILL && b.a >= G.MIN_AREA));
+
+  // No shipped building has an area in [600, 601) and no photo is from 1880 or 2000, so a
+  // one-step change to these four is invisible to every data-driven check above. They are
+  // pinned to their values outright: each is a contract app.js and build.py rely on, and an
+  // accidental edit to one has nothing else to trip over.
+  eq("MIN_AREA is the 600 m² floor build.py applies", G.MIN_AREA, 600);
+  eq("MIN_VERTS is 8", G.MIN_VERTS, 8);
+  eq("MAX_FILL is 0.92", G.MAX_FILL, 0.92);
+  eq("THEN_MIN is the 1880 slider floor", G.THEN_MIN, 1880);
+  eq("THEN_MAX is the 2000 slider ceiling", G.THEN_MAX, 2000);
 }
 
 if (fails.length) {
