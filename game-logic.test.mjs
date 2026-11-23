@@ -863,12 +863,17 @@ ok("pickRounds: still works when no building is flagged",
   eq("pinSquare: 26 m is close, not on it", G.pinSquare(26), "\u{1F7E8}");
   eq("pinSquare: 501 m is off the map", G.pinSquare(501), "\u{2B1C}");
 
-  // An area is named after its biggest notable building; with none, its biggest playable one.
+  // An area is named after its biggest notable building; with none, after the biggest
+  // playable building of the estate 3+ of its names share; else its biggest playable one.
   const A = G.areas(B);
   A.list.forEach((a, i) => {
     const mine = B.filter((b) => A.of[b.n] === i);
     const big = (xs) => xs.slice().sort((x, y) => y.a - x.a || (x.n < y.n ? -1 : 1))[0];
-    const want = big(mine.filter((b) => b.w === 1)) || big(mine.filter((b) => b.q === 1));
+    const est = {};
+    mine.forEach((b) => { const k = b.n.split(",")[0]; if (b.n.includes(",")) (est[k] = est[k] || []).push(b); });
+    const top = Object.values(est).sort((x, y) => y.length - x.length)[0] || [];
+    const want = big(mine.filter((b) => b.w === 1)) ||
+      (top.length >= 3 && big(top.filter((b) => b.q === 1))) || big(mine.filter((b) => b.q === 1));
     eq(`areas[${i}]: named after its biggest notable building`, a.near, want.n);
   });
   ok("areas: the control — some area's biggest notable is not its alphabetical first",
@@ -906,6 +911,29 @@ ok("pickRounds: still works when no building is flagged",
   }
   ok("areas: the control — some area has no notable building, so the fallback runs",
      A.list.some((a, i) => !B.some((b) => A.of[b.n] === i && b.w === 1)));
+  // The shipped labels, as a player reads them. Escondido Village has no notable building
+  // and its biggest is a records warehouse; it was shown as "Around Warehouse" until
+  // 2026-11-23. Every label must also name a place, not a storage building.
+  eq("areas: the shipped labels, west to east", A.list.map((a) => a.label).join(" | "),
+     "Around Arrillaga Outdoor Education and Recreation Center | Around James H. Clark Center | " +
+     "Around School of Law | Around Maples Pavilion | Around Escondido Village");
+  {
+    const sqE = (n, x, a, q) => ({ n, a, f: 0.5, q, w: 0, p: [x, 0, x + 10, 0, x + 10, 10, x, 10] });
+    const lab = (bs) => G.areas(bs, 1).list[0];
+    const three = [sqE("Big Shed", 0, 9000, 1), sqE("Vale, Bldg A", 20, 100, 1),
+      sqE("Vale, Bldg B", 40, 200, 1), sqE("Vale, Bldg C", 60, 300, 0)];
+    eq("areas: three names sharing an estate name the area, over a bigger lone building",
+       lab(three).label, "Around Vale");
+    eq("areas: ...near the estate's biggest PLAYABLE member, not its biggest", lab(three).near, "Vale, Bldg B");
+    eq("areas: two sharing an estate are not enough — the biggest playable names it",
+       lab(three.slice(0, 3)).label, "Around Big Shed");
+    eq("areas: a notable building still beats an estate",
+       lab(three.concat([Object.assign(sqE("Tower", 80, 50, 1), { w: 1 })])).label, "Around Tower");
+    const tie = three.concat([sqE("Alder, Bldg 1", 80, 10, 1), sqE("Alder, Bldg 2", 90, 20, 1), sqE("Alder, Bldg 3", 100, 30, 1)]);
+    eq("areas: two estates of three tie to the alphabetically first", lab(tie).label, "Around Alder");
+    eq("areas: the larger estate wins over an earlier-alphabet smaller one",
+       lab(tie.concat([sqE("Vale, Bldg D", 110, 5, 1)])).label, "Around Vale");
+  }
 
   // Two per decade is the cap, not one: five decades of three photos still make a ten.
   const five = [];

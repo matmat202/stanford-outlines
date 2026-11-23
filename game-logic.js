@@ -423,6 +423,24 @@
    *  area, so wrong names come from the same part of campus as the answer. Each area is
    *  named after a building in it ("Around Maples Pavilion" is checkable, an invented
    *  neighbourhood name would not be), and the page also draws it on a map. Sorted by x. */
+  /** The buildings of the estate most of an area's names share ("Escondido Village, EVGR
+   *  Bldg A" .. "Bldg D" are one estate), or [] when no estate has ESTATE_MIN of them. An
+   *  area with no notable building is named after this before its biggest building: the
+   *  biggest in Escondido Village is "Warehouse, Maps & Records Offices", and "Around
+   *  Warehouse" tells a newcomer nothing. Ties go to the alphabetically first estate. */
+  const ESTATE_MIN = 3;
+  function estateOf(pool) {
+    const by = {};
+    pool.forEach(function (b) {
+      const i = b.n.indexOf(",");
+      if (i > 0) (by[b.n.slice(0, i)] = by[b.n.slice(0, i)] || []).push(b);
+    });
+    const best = Object.keys(by).sort(function (a, b) {
+      return by[b].length - by[a].length || (a < b ? -1 : 1);
+    })[0];
+    return best && by[best].length >= ESTATE_MIN ? by[best] : [];
+  }
+
   function areas(all, k) {
     k = k || 5;
     const play = all.filter(function (b) { return b.q === 1; })
@@ -466,13 +484,15 @@
     const list = order.map(function (j, r) {
       const mine = all.filter(function (b) { return of[b.n] === r; });
       /* The biggest notable building is the one a newcomer has most likely walked past;
-         an area with none (Escondido Village has no w=1 entry) falls back to its biggest
-         playable one, and "Escondido Village, EVGR Bldg A" is shown as its estate. */
+         an area with none (Escondido Village has no w=1 entry) is named after the estate
+         most of its names share, else its biggest playable building; a comma'd name such
+         as "Escondido Village, EVGR Bldg A" is shown as its estate. */
       const biggest = function (pool) {
         return pool.filter(function (b) { return !used[b.n]; })
           .sort(function (a, b) { return b.a - a.a || (a.n < b.n ? -1 : 1); })[0];
       };
       const mark = biggest(mine.filter(function (b) { return b.w === 1; })) ||
+        biggest(estateOf(mine).filter(function (b) { return b.q === 1; })) ||
         biggest(mine.filter(function (b) { return b.q === 1; }));
       used[mark.n] = true;
       return {
