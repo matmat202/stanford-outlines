@@ -45,7 +45,14 @@ ok("data: no playable building is a rectangle", B.filter((b) => b.q === 1 && b.p
 // The reveal links each building to its OSM way. A link to the wrong way sends the player
 // to the wrong building with full confidence, so check every id against the extract it
 // claims to come from: the way exists, and carries this building's name.
-const RAW = require("../data/osm.raw.json").elements;
+// The extract sits at ../data here (the sandbox) and at ./data in the public repo, where
+// this file ships beside game-logic.js. Neither found is a crash, never a skipped check.
+const RAW = (() => {
+  for (const p of ["./data/osm.raw.json", "../data/osm.raw.json"]) {
+    try { return require(p).elements; } catch (e) { if (e.code !== "MODULE_NOT_FOUND") throw e; }
+  }
+  throw new Error("osm.raw.json not found at ./data or ../data: the OSM way-id checks cannot run");
+})();
 const WAY = new Map(RAW.map((e) => [Number(e.id), e]));
 ok("data: every building carries a positive integer OSM way id",
    B.every((b) => Number.isInteger(b.o) && b.o > 0), `${B.filter((b) => !(Number.isInteger(b.o) && b.o > 0)).length} without`);

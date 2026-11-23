@@ -76,6 +76,7 @@ football), because Commons' Stanford files from those decades are mostly headsho
 ```sh
 python3 -m http.server 8000 --directory site    # then open localhost:8000
 node site/game-logic.test.mjs                   # the logic suite
+node game-logic.test.mjs                        # the same suite, from a clone of the public repo
 test/run-misses.sh                              # misses, end to end in Electron
 test/run-then.sh                                # Stanford, then, end to end (every photo must load)
 python3 build_then.py                           # rebake site/data/then.json from the reviewed list
